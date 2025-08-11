@@ -1,0 +1,28 @@
+Katalog Data: Lokasi,,,,
+,,,,
+No,Data,Deskripsi,Tipe,Keterangan
+1,ID Lokasi,,,
+2,Nama Lokasi,Nama lokasi Labsos,String,Tanpa maksimal jumlah karakter
+3,Deskripsi Lokasi,Penjelasan singkat terkait Lokasi,String,"- Tanpa maksimal jumlah karakter
+- Dalam bentu rich text"
+4,Kategori Lokasi,Kategori Lokasi,String,Get dari Master Data Kategori
+5,Isu Strategis,Penjelasan terkait isu strategis,String,"- Tanpa maksimal jumlah karakter
+- Dalam bentu rich text"
+6,Program Studi,Program studi mahasiswa yang diperbolehkan mendaftar ke lokasi,String,"Opsi Data Program Studi tersedia:
+Studi Islam Interdisipliner
+Manajemen
+Akuntansi
+Farmasi
+Agribisnis
+Teknologi Hasil Pertanian
+Informatika
+Teknik Elektro
+Teknik Komputer
+Pendidikan Guru Sekolah Dasar
+Pendidikan Bahasa Inggris
+
+Mahasiswa akan memilih hanya satu di antaranya."
+7,Kuota Mahasiswa,Jumlah maksimal pendaftar untuk menentukan lokasi tersedia atau tidak untuk mahasiswa mendaftar,Number,"Tanpa maksimal jumlah, minimal berjumlah 1"
+8,Foto Lokasi,Foto lokasi,File,Gambar dengan format JPG/PNG maksimum 50 Mb
+9,Timestamp,Tanggal-Waktu data lokasi ditambahkan,Date Time,"Format:
+DD-MM-YYYY HH:MM:SS"

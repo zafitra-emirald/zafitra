@@ -1,0 +1,11 @@
+Katalog Data: Kategori,,,,
+,,,,
+No,Data,Deskripsi,Tipe,Keterangan
+1,ID Kategori,,,
+2,Nama Kategori,Nama kategori Labsos,String,Tanpa maksimal jumlah karakter
+3,Deskripsi Kategori,Penjelasan singkat terkait Kategori,String,"- Tanpa maksimal jumlah karakter
+- Dalam bentu rich text"
+4,Isu Strategis,Penjelasan terkait isu strategis,String,"- Tanpa maksimal jumlah karakter
+- Dalam bentu rich text"
+5,Timestamp,Tanggal-Waktu data lokasi ditambahkan,Date Time,"Format:
+DD-MM-YYYY HH:MM:SS"

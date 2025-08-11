@@ -1,0 +1,148 @@
+Product Requirement - Sistem Informasi Labsos,,,,,,
+,,,,,,
+#,User,Epics,Stories,Requirement,Cases,Acc Criteria
+1,Student,Melihat Informasi Lokasi Labsos,"- Sebagai seorang mahasiswa, saya ingin melihat daftar lokasi Labsos yang tersedia beserta seluruh keterangan lokasi tersebut
+- Saya ingin menentukan apakah lokasi tersebut cocok untuk saya
+- Saya ingin melihat apakah kuota di lokasi tersebut masih tersedia atau tidak","- Mahasiswa dapat mengakses halaman daftar lokasi yang berupa katalog judul dan detail lokasi
+- Mahasiswa tidak perlu melakukan login untuk mengakses halaman ini
+- Detail lokasi yang dimaksud berupa: Nama Lokasi, Bidang, Foto, Deskripsi, Kuota Mahasiswa, dan lainnya mengacu pada katalog data lokasi","- Mahasiswa mengakses halaman utama sistem
+- Mahasiswa melihat daftar lokasi dalam bentuk katalog/card
+- Mahasiswa mengklik detail lokasi tertentu
+- Mahasiswa melihat informasi lengkap lokasi termasuk sisa kuota
+- Mahasiswa menavigasi kembali ke daftar lokasi","- Given mahasiswa mengakses sistem When membuka halaman utama Then dapat melihat daftar lokasi tanpa perlu login
+- Given mahasiswa melihat katalog lokasi When mengklik salah satu lokasi Then detail lokasi ditampilkan dengan informasi: Nama Lokasi, Deskripsi Lokasi, Kategori Lokasi, Isu Strategis, Kuota Maksimal, Sisa Kuota
+- Given lokasi memiliki kuota penuh When mahasiswa melihat detail Then sistem menampilkan status ""Kuota Penuh""
+- Given mahasiswa di halaman detail lokasi When menggunakan tombol kembali Then kembali ke daftar katalog lokasi"
+2,Student,Mendaftar di Lokasi Labsos,"- Sebagai seorang mahasiswa, saya ingin mendaftar di lokasi labsos yang saya lihat cocok dengan saya
+- Saya ingin mengisi form secara singkat tapi lengkap dan teliti
+- Saya ingin mengetahui apakah pendaftaran saya sudah berhasil atau belum","- Lokasi dibuka/ditutup berdasarkan periode pendaftaran dan ketersediaan kuota di lokasi tersebut
+- Pendaftaran otomatis ditutup jika kuota penuh baik oleh mahasiswa yang masih mengajukan pendaftaran maupun sudah lolos
+- Pendaftaran otomatis dibuka lagi apabila ada mahasiswa yang sudah mengajukan/mendaftar tapi ditolak atau tidak lolos
+- Pendaftaran otomatis ditutup jika periode pendaftaran tidak tersedia dan otomatis buka kembali jika periode tersedia
+- Mahasiswa dapat mendaftar ke lokasi yang masih tersedia kuotanya pada periode pendaftaran yang sudah dibuka
+- Mahasiswa membuka form yang dapat diisi dengan data mahasiswa lengkap sesuai katalog data pendaftaran mahasiswa
+- Pada form pendaftaran, terdapat link untuk mengunduh contoh format dokumen yang perlu diunggah pada form tersebut
+- Mahasiswa terhitung mendaftar jika sudah menyelesaikan form. Jika pada saat mendaftar kuota terpenuhi, maka mahasiswa tidak dapat menyimpan pendaftaran
+- Setelah mengisi form, mahasiswa mendapatkan notifikasi apakah pendaftaran berhasil tersimpan atau gagal
+- Form isian juga termasuk upload berkas dalam bentuk PDF maksimal 10Mb, format dapat diunduh langsung dari form isian
+- 1 mahasiswa hanya bisa mendaftar di 1 lokasi saja. Apabila sudah mendaftar, mahasiswa tidak dapat mendaftar di lokasi lain sampai hasil pendaftaran keluar adalah tidak lolos sehingga bisa mendaftar lagi","- Mahasiswa mengklik tombol ""Daftar"" pada lokasi yang tersedia
+- Sistem melakukan validasi periode pendaftaran dan kuota
+- Mahasiswa mengisi form pendaftaran dengan data lengkap
+- Mahasiswa mengunduh template dokumen pendukung
+- Mahasiswa mengupload dokumen dalam format PDF
+- Mahasiswa submit form pendaftaran
+- Sistem memvalidasi data dan memberikan notifikasi hasil","- Given periode pendaftaran aktif dan kuota tersedia When mahasiswa mengklik ""Daftar"" Then form pendaftaran ditampilkan
+- Given periode pendaftaran tidak aktif When mahasiswa mengklik ""Daftar"" Then muncul pesan ""Periode pendaftaran belum/sudah berakhir""
+- Given kuota lokasi penuh When mahasiswa mengklik ""Daftar"" Then muncul pesan ""Kuota lokasi sudah penuh""
+- Given mahasiswa mengisi form When semua data wajib diisi dengan benar Then tombol submit aktif
+- Given mahasiswa upload dokumen When file berformat PDF dan ukuran ≤10MB Then upload berhasil
+- Given mahasiswa upload dokumen When file bukan PDF atau >10MB Then muncul pesan error
+- Given mahasiswa sudah submit form When data valid dan kuota tersedia Then pendaftaran berhasil dengan status ""Diajukan""
+- Given mahasiswa sudah mendaftar di satu lokasi When mencoba mendaftar lokasi lain Then muncul pesan ""Anda sudah mendaftar di lokasi lain"""
+3,Student,Melihat Hasil Pendaftaran,"- Sebagai seorang mahasiswa yang sudah terdaftar, saya ingin melihat apakah pendaftaran saya ke lokasi Labsos tertentu lolos atau tidak
+- Jika hasilnya saya tidak lolos, maka saya ingin mengetahui alasannya agar dapat saya perbaiki selanjutnya","- Informasi status pendaftaran mahasiswa dapat diakses secara publik karena tidak ada login
+- Mahasiswa melihat informasi status pendaftarannya dengan memanfaatkan fitur search dengan variabel pencarian: Nama mahasiswa; Waktu pendaftaran; Lokasi pendaftaran. Search dapat dilakukan hanya per variabel atau kombinasi variabel
+- Mahasiswa dapat mengakses status pendaftarannya yaitu: Diajukan, Disetujui, Ditolak
+- Jika status=Ditolak, maka mahasiswa dapat melihat alasan penolakan oleh admin
+- Jika status=Ditolak, maka mahasiswa dapat mendaftar lagi apabila periode masih buka dan lokasi yang dipilih masih tersedia kuotanya
+- Jika status=Diajukan atau status=Disetujui, maka mahasiswa tidak dapat mendaftar lagi walaupun periode masih buka dan lokasi masih tersedia kuotanya","- Mahasiswa mengakses halaman cek status pendaftaran
+- Mahasiswa mengisi form pencarian dengan kriteria (nama/waktu/lokasi)
+- Sistem menampilkan hasil pencarian status pendaftaran
+- Mahasiswa melihat detail status pendaftaran
+- Jika status ""Ditolak"", mahasiswa melihat alasan penolakan
+- Jika status ""Ditolak"", mahasiswa dapat mengakses tombol daftar ulang","- Given mahasiswa mengakses halaman cek status When mengisi nama mahasiswa Then sistem menampilkan hasil pencarian berdasarkan nama
+- Given mahasiswa menggunakan kombinasi pencarian When mengisi nama + lokasi Then sistem menampilkan hasil yang sesuai dengan kedua kriteria
+- Given pencarian tidak ditemukan When kriteria tidak cocok Then muncul pesan ""Data pendaftaran tidak ditemukan""
+- Given status pendaftaran ""Diajukan"" When mahasiswa melihat status Then ditampilkan ""Pendaftaran sedang diproses""
+- Given status pendaftaran ""Disetujui"" When mahasiswa melihat status Then ditampilkan ""Selamat! Pendaftaran Anda diterima""
+- Given status pendaftaran ""Ditolak"" When mahasiswa melihat status Then ditampilkan alasan penolakan dan tombol ""Daftar Ulang""
+- Given status ""Ditolak"" dan periode masih aktif When mahasiswa klik ""Daftar Ulang"" Then sistem mengarahkan ke form pendaftaran"
+4,Admin,Login Admin,"Saya sebagai admin ingin login ke dalam sistem untuk mengakses dan mengelola:
+- Data lokasi
+- Data periode
+- Data kategori
+- Data pendaftaran mahasiswa","- Terdapat button untuk melakukan login admin
+- Admin login hanya menggunakan 1 credential dengan username: ""admin-labsos""; password: ""labsosunujogja-4869""
+- Tidak ada opsi ubah username atau password
+- Tidak ada opsi lupa username dan password
+- Sesi tanpa batas waktu
+- Admin dapat logout dari sesi kapanpun","- Admin mengakses tombol ""Login Admin"" di sistem
+- Admin mengisi form login dengan username dan password
+- Sistem memvalidasi kredensial admin
+- Admin berhasil login dan mengakses dashboard admin
+- Admin melakukan logout dari sistem","- Given admin mengakses sistem When mengklik ""Login Admin"" Then form login ditampilkan
+- Given admin mengisi kredensial benar When username ""admin-labsos"" dan password ""labsosunujogja-4869"" Then login berhasil dan masuk dashboard admin
+- Given admin mengisi kredensial salah When username/password tidak sesuai Then muncul pesan ""Username atau password salah""
+- Given admin sudah login When menutup browser dan buka lagi Then tetap dalam status login (sesi persisten)
+- Given admin di dashboard When mengklik ""Logout"" Then keluar dari sistem dan kembali ke halaman utama
+- Given admin sudah login When mengakses halaman publik Then muncul indikator status admin login"
+5,Admin,Menambahkan Master Data Lokasi,"- Sebagai admin saya ingin menambahkan data lokasi yang tersedia
+- Saya ingin mengisi detail data lokasi untuk menginformasikan kepada mahasiswa
+- Saya ingin mahasiswa mengetahui secara rinci lokasi yang tersedia agar proposal yang dikirimkan sesuai dengan kebutuhan di lokasi Labsos","- Admin dapat melihat daftar data lokasi yang sudah ditambahkan
+- Admin dapat menambahkan data lokasi dengan detail data sesuai katalog data lokasi
+- Setiap lokasi memiliki kuota yang ditentukan lewat master data ini
+- Setiap lokasi memiliki kategori
+- Setiap lokasi memiliki isu strategis","- Admin mengakses menu ""Master Data Lokasi"" di dashboard
+- Admin melihat daftar lokasi yang sudah ada
+- Admin mengklik ""Tambah Lokasi Baru""
+- Admin mengisi form data lokasi lengkap
+- Admin menyimpan data lokasi baru
+- Admin mengedit atau menghapus lokasi yang sudah ada","- Given admin login When mengakses menu ""Master Data Lokasi"" Then ditampilkan daftar lokasi dalam bentuk tabel
+- Given admin di halaman daftar lokasi When mengklik ""Tambah Lokasi"" Then form input lokasi ditampilkan
+- Given admin mengisi form lokasi When semua field wajib diisi (Nama Lokasi, Deskripsi, Kategori, Isu Strategis, Kuota) Then tombol simpan aktif
+- Given admin menyimpan lokasi When data valid Then lokasi tersimpan dan muncul di daftar dengan timestamp
+- Given admin melihat daftar lokasi When mengklik ""Edit"" pada lokasi tertentu Then form edit dengan data sebelumnya ditampilkan
+- Given admin di form edit When mengubah data dan simpan Then perubahan tersimpan dan daftar terupdate
+- Given admin mengklik ""Hapus"" lokasi When konfirmasi penghapusan Then lokasi terhapus dari daftar"
+6,Admin,Menambahkan Master Data Periode,"- Sebagai admin saya ingin menambahkan data periode yang tersedia
+- Saya ingin mahasiswa hanya mendaftar di periode waktu yang aktif
+- Jika terdapat periode pendaftaran baru, saya hanya perlu menambahkan nya saja di master data dengan rentang waktu yang diinginkan
+- Saya ingin melihat daftar periode yang sudah pernah saya tambahkan dan status aktifnya","- Admin dapat menambahkan data periode aktif pendaftaran
+- Data periode sesuai katalog data periode
+- Data periode menentukan apakah mahasiswa dapat melakukan pendaftaran di waktu tertentu","- Admin mengakses menu ""Master Data Periode"" di dashboard
+- Admin melihat daftar periode dengan status aktif/tidak aktif
+- Admin menambah periode pendaftaran baru
+- Admin mengatur tanggal mulai dan selesai periode
+- Admin mengaktifkan/menonaktifkan periode tertentu","- Given admin login When mengakses menu ""Master Data Periode"" Then ditampilkan daftar periode dengan status aktif/tidak aktif
+- Given admin di halaman periode When mengklik ""Tambah Periode"" Then form input periode ditampilkan
+- Given admin mengisi form periode When memasukkan Nama Periode, Tanggal Mulai, Tanggal Selesai Then tombol simpan aktif
+- Given periode dengan tanggal hari ini When berada dalam rentang tanggal Then status otomatis ""Aktif""
+- Given periode diluar tanggal aktif When tanggal sekarang < mulai atau > selesai Then status otomatis ""Tidak Aktif""
+- Given admin melihat daftar periode When mengubah status periode Then dapat mengaktifkan/menonaktifkan secara manual
+- Given periode tidak aktif When mahasiswa mencoba mendaftar Then pendaftaran tidak tersedia"
+7,Admin,Menambahkan Master Data Kategori,"- Sebagai admin saya ingin menambahkan data kategori yang tersedia
+- Saya ingin mahasiswa dapat melihat kategori di setiap lokasi
+- Saya ingin mahasiswa dapat melihat isu strategis di setiap kategori","- Admin dapat menambahkan data kategori yang terhubung ke master data lokasi
+- Data kategori sesuai katalog data kategori
+- Data kategori dapat diedit dan dihapus dan berpengaruh pada master data lokasi","- Admin mengakses menu ""Master Data Kategori""
+- Admin melihat daftar kategori yang sudah ada
+- Admin menambah kategori baru dengan nama dan deskripsi
+- Admin mengedit kategori yang sudah ada
+- Admin menghapus kategori (dengan validasi penggunaan di lokasi)","- Given admin login When mengakses menu ""Master Data Kategori"" Then ditampilkan daftar kategori dalam bentuk tabel
+- Given admin di halaman kategori When mengklik ""Tambah Kategori"" Then form input kategori ditampilkan
+- Given admin mengisi form kategori When memasukkan Nama Kategori, Deskripsi, Isu Strategis Then tombol simpan aktif
+- Given admin menyimpan kategori When data valid Then kategori tersimpan dengan timestamp
+- Given admin mengedit kategori When mengubah data dan simpan Then perubahan otomatis terupdate di lokasi yang menggunakan kategori tersebut
+- Given admin menghapus kategori When kategori digunakan di lokasi Then muncul peringatan ""Kategori digunakan di lokasi lain""
+- Given admin menghapus kategori When kategori tidak digunakan Then penghapusan berhasil"
+8,Admin,Melihat Berkas Pendaftaran Mahasiswa,"- Sebagai admin saya ingin melihat berkas pendaftaran mahasiswa secara detail, untuk menilai apakah mahasiswa tersebut dapat diloloskan atau tidak
+- Saya ingin memberikan keputusan lolos atau tidak agar mahasiswa tau hasil secara langsung dan menindaklanjutinya
+- Saya ingin mengetahui pendaftar per lokasi dan mengetahui apakah kuota di lokasi tersebut sudah penuh atau belum","- Admin dapat melihat daftar pendaftar dan detail data pendaftaran secara lengkap per lokasi
+- Admin dapat melihat (view) dokumen berkas pendaftaran di sistem maupun mengunduhnya
+- Admin dapat melihat kuota per lokasi terkini
+- Admin dapat memberikan keputusan lolos atau tidaknya mahasiswa. Jika tidak lolos, admin wajib menuliskan alasan penolakan","- Admin mengakses menu ""Kelola Pendaftaran""
+- Admin memfilter pendaftar berdasarkan lokasi atau status
+- Admin melihat detail pendaftaran mahasiswa
+- Admin membuka dan mendownload dokumen pendukung
+- Admin memberikan keputusan ""Setujui"" atau ""Tolak""
+- Admin mengisi alasan penolakan jika menolak
+- Admin melihat statistik kuota per lokasi
+","- Given admin login When mengakses menu ""Kelola Pendaftaran"" Then ditampilkan daftar pendaftar dengan filter lokasi dan status
+- Given admin memilih filter lokasi When memilih lokasi tertentu Then hanya pendaftar di lokasi tersebut yang ditampilkan
+- Given admin melihat daftar pendaftar When mengklik ""Detail"" pada pendaftar Then ditampilkan data lengkap mahasiswa dan dokumen
+- Given admin di halaman detail When mengklik dokumen PDF Then dokumen dapat dilihat di browser atau didownload
+- Given admin menilai pendaftaran When mengklik ""Setujui"" Then status berubah menjadi ""Disetujui""
+- Given admin menilai pendaftaran When mengklik ""Tolak"" Then muncul form alasan penolakan yang wajib diisi
+- Given admin menolak dengan alasan When menyimpan keputusan Then status berubah menjadi ""Ditolak"" dan alasan tersimpan
+- Given admin melihat dashboard When mengakses statistik Then ditampilkan jumlah pendaftar, yang lolos, dan sisa kuota per lokasi
+- Given kuota lokasi penuh When admin menyetujui pendaftar Then sistem otomatis menutup pendaftaran untuk lokasi tersebut"
