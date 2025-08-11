@@ -380,6 +380,255 @@ safe_function <- function(input) {
 
 This function-first approach ensures robust, maintainable, and testable code that forms the solid foundation of the Labsos application.
 
+## AI-Assisted Development Prompts
+
+### 🤖 **Phase 1: Business Logic Functions (global.R)**
+
+#### **Data Foundation Functions**
+```
+CONTEXT: I'm developing a Shiny app for Laboratorium Sosial (social laboratory) student registration system. This system manages categories, periods, locations, and student registrations using RDS file storage.
+
+TASK: Create data foundation functions for the global.R file.
+
+REQUIREMENTS:
+- Functions should handle RDS file loading/saving with error handling
+- Include data integrity validation
+- Support backup and recovery mechanisms
+- Follow R best practices with clear return values
+
+DATA STRUCTURES:
+- kategori_data: id_kategori, nama_kategori, deskripsi_kategori, isu_strategis, timestamp
+- periode_data: id_periode, nama_periode, waktu_mulai, waktu_selesai, status, timestamp  
+- lokasi_data: id_lokasi, nama_lokasi, deskripsi_lokasi, kategori_lokasi, isu_strategis, kuota_mahasiswa, foto_lokasi, program_studi (list), timestamp
+- pendaftaran_data: id_pendaftaran, timestamp, nama_mahasiswa, program_studi, kontak, pilihan_lokasi, alasan_pemilihan, usulan_dosen_pembimbing, cv_path, form_rekomendasi_path, form_komitmen_path, transkrip_path, status_pendaftaran, alasan_penolakan
+
+FUNCTIONS NEEDED:
+1. load_data_safely() - Load RDS files with error handling
+2. validate_data_integrity() - Check data consistency and relationships
+3. backup_data() - Create timestamped backups
+4. restore_from_backup() - Restore from backup files
+5. initialize_empty_data() - Create empty data structures
+
+Please generate clean, well-documented R functions with consistent error handling patterns.
+```
+
+#### **Registration Business Logic**
+```
+CONTEXT: Building core registration business logic for a university social laboratory program where students apply to community locations with quota limits and period restrictions.
+
+TASK: Create registration validation and processing functions.
+
+BUSINESS RULES:
+- Students can only register during active periods
+- Only one registration per student (unless previous was rejected)
+- Locations have quota limits that must be enforced
+- Required documents: CV, recommendation form, commitment form, transcript
+- All documents must be PDF format, max 10MB
+
+FUNCTIONS NEEDED:
+1. check_registration_eligibility(student_data, location_id, periode_data)
+2. validate_student_documents(document_list)
+3. process_new_registration(student_data, location_id, documents)
+4. calculate_quota_status(location_id, registration_data)
+5. check_duplicate_registration(student_name, registration_data)
+
+Each function should return a consistent structure: list(success = TRUE/FALSE, message = "...", data = result)
+
+Please include comprehensive validation logic and clear error messages in Indonesian.
+```
+
+#### **Admin Management Functions**
+```
+CONTEXT: Admin panel for managing master data (categories, periods, locations) with referential integrity checking.
+
+TASK: Create admin management functions for CRUD operations.
+
+REQUIREMENTS:
+- Category deletion should check if used by locations
+- Period management should ensure only one active period
+- Location management should validate category relationships
+- All operations should maintain data consistency
+
+FUNCTIONS NEEDED:
+1. validate_admin_credentials(username, password)
+2. manage_master_data(operation, data_type, data)
+3. process_application_decision(registration_id, decision, reason)
+4. generate_admin_reports(report_type)
+5. check_referential_integrity(data_type, id)
+
+Include proper validation for business constraints and return structured results for UI consumption.
+```
+
+### 🎨 **Phase 2: User Interface (ui.R)**
+
+#### **Student Interface Components**
+```
+CONTEXT: Creating a modern, responsive student interface for browsing locations and registering for social laboratory programs.
+
+TASK: Generate UI components for the student interface.
+
+DESIGN REQUIREMENTS:
+- Modern card-based design for location display
+- Responsive layout that works on mobile
+- Progressive disclosure for registration forms
+- Clear visual feedback for form validation
+- Indonesian language throughout
+
+COMPONENTS NEEDED:
+1. Location browsing cards with photos and details
+2. Advanced filtering options (category, program studi)
+3. Registration modal with multi-step form
+4. Document upload interface with validation feedback
+5. Registration status checking interface
+
+EXISTING CSS CLASSES: location-card, location-image, location-content, location-title, register-btn
+
+Please generate Shiny UI code using shinydashboard with custom CSS for professional appearance.
+```
+
+#### **Admin Interface Components**
+```
+CONTEXT: Admin dashboard for managing master data and reviewing student applications.
+
+TASK: Create admin interface components with full CRUD capabilities.
+
+REQUIREMENTS:
+- DataTables for all master data with inline editing
+- Application review interface with document viewing
+- Batch operations for efficiency
+- Statistical dashboard with key metrics
+- Modal dialogs for confirmations and detailed views
+
+COMPONENTS NEEDED:
+1. Master data management tables (categories, periods, locations)
+2. Application review interface with status management
+3. Dashboard with statistics and charts
+4. Bulk approval/rejection interface
+5. System settings and configuration
+
+Use DT package for advanced tables and include proper form validation throughout.
+```
+
+### ⚙️ **Phase 3: Server Integration (server.R)**
+
+#### **Reactive Event Handlers**
+```
+CONTEXT: Connecting UI events to business logic functions in a Shiny server with proper reactive programming.
+
+TASK: Create server-side event handlers that use the business logic functions.
+
+REQUIREMENTS:
+- Use observeEvent() for user actions
+- Implement reactive() for computed values
+- Handle file uploads securely
+- Provide clear user feedback with notifications
+- Maintain session state properly
+
+HANDLERS NEEDED:
+1. Registration form submission with validation
+2. Admin login and session management
+3. Master data CRUD operations
+4. File upload processing
+5. Real-time quota updates
+
+PATTERN:
+observeEvent(input$action, {
+  result <- business_function(input_data)
+  if(result$success) {
+    # Update UI and show success
+  } else {
+    # Show error message
+  }
+})
+
+Integrate with the business logic functions from global.R and provide comprehensive error handling.
+```
+
+#### **Reactive Data Management**
+```
+CONTEXT: Managing reactive data flows for real-time updates across the Shiny application.
+
+TASK: Implement reactive data management with proper state handling.
+
+REQUIREMENTS:
+- reactiveValues for application state
+- Automatic UI updates when data changes
+- Efficient reactive dependencies
+- Session cleanup and memory management
+
+REACTIVE COMPONENTS:
+1. Real-time quota tracking and display
+2. Dynamic form field updates based on selections
+3. Live validation feedback
+4. Auto-refresh for admin dashboard statistics
+5. Session state management across page navigation
+
+Use Shiny's reactive programming effectively while maintaining performance and avoiding unnecessary re-computations.
+```
+
+### 🧪 **Phase 4: Testing and Validation**
+
+#### **Function Testing**
+```
+CONTEXT: Creating comprehensive tests for business logic functions to ensure reliability.
+
+TASK: Generate test cases for all business logic functions.
+
+REQUIREMENTS:
+- Unit tests for individual functions
+- Integration tests for function combinations
+- Edge case testing (empty data, invalid inputs)
+- Mock data for testing scenarios
+
+TEST FRAMEWORK: Use testthat package
+
+Create test files that cover:
+1. Data validation functions
+2. Registration business logic
+3. Admin management functions  
+4. Error handling scenarios
+5. Business rule enforcement
+
+Include both positive and negative test cases with clear assertions.
+```
+
+#### **User Flow Testing**
+```
+CONTEXT: End-to-end testing of complete user workflows in the Shiny application.
+
+TASK: Create user flow test scenarios.
+
+WORKFLOWS TO TEST:
+1. Student registration flow (browse → select → register → confirm)
+2. Admin approval workflow (login → review → approve/reject)
+3. Master data management (add → edit → delete with validation)
+4. Period management and quota enforcement
+5. Document upload and validation
+
+Create test scripts that simulate user interactions and validate expected outcomes at each step.
+```
+
+### 📝 **Development Prompt Usage Guidelines**
+
+1. **Sequential Development**: Use prompts in order (Functions → UI → Server → Testing)
+2. **Context Preservation**: Each prompt includes full context to maintain coherence
+3. **Iterative Refinement**: Use follow-up prompts to refine generated code
+4. **Integration Testing**: Test each component integration before moving to next phase
+5. **Documentation**: Document any deviations from generated code for future reference
+
+### 🔄 **Prompt Customization Template**
+
+When generating code, always include:
+```
+CONTEXT: [Brief description of the component and its role]
+TASK: [Specific development task]
+REQUIREMENTS: [Technical and business requirements]
+EXISTING CODE: [Reference to related components]
+OUTPUT FORMAT: [Expected code structure and style]
+```
+
+This systematic approach ensures consistent, high-quality code generation while maintaining the function-first architecture.
+
 ## API Reference
 
 ### Core Functions
