@@ -523,7 +523,8 @@ ui <- dashboardPage(
     conditionalPanel(
       condition = "input.admin_login_btn > 0 && !output.is_admin_logged_in",
       div(
-        style = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;",
+        id = "admin_login_modal",
+        style = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000;",
         onclick = "if(event.target === this) { Shiny.setInputValue('cancel_admin_login', Math.random()); }",
         div(
           style = "position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 0; border-radius: 15px; min-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);",

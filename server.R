@@ -58,20 +58,28 @@ server <- function(input, output, session) {
   observeEvent(input$cancel_admin_login, {
     values$login_error <- FALSE
     shinyjs::runjs("
-      $('.modal').modal('hide'); 
-      $('.modal-backdrop').remove(); 
+      // Hide the login modal specifically
+      $('#admin_login_modal').hide();
+      
+      // Clean up any modal artifacts
+      $('.modal-backdrop').remove();
       $('body').removeClass('modal-open');
       $('body').css('padding-right', '');
+      $('body').css('overflow', '');
     ")
   })
   
   observeEvent(input$close_admin_login, {
     values$login_error <- FALSE
     shinyjs::runjs("
-      $('.modal').modal('hide'); 
-      $('.modal-backdrop').remove(); 
+      // Hide the login modal specifically
+      $('#admin_login_modal').hide();
+      
+      // Clean up any modal artifacts
+      $('.modal-backdrop').remove();
       $('body').removeClass('modal-open');
       $('body').css('padding-right', '');
+      $('body').css('overflow', '');
     ")
   })
   
@@ -83,14 +91,30 @@ server <- function(input, output, session) {
     session$userData$selected_kategori_id <- NULL
     session$userData$selected_periode_id <- NULL
     session$userData$selected_lokasi_id <- NULL
-    # Force close any open modals and redirect to homepage
+    # Reset registration modal state
+    values$selected_location <- NULL
+    values$show_registration_modal <- FALSE
+    
+    # Force close any open modals but keep the page functional
     shinyjs::runjs("
-      $('.modal').modal('hide'); 
-      $('.modal-backdrop').remove(); 
+      // Close all Bootstrap modals
+      $('.modal').modal('hide');
+      
+      // Remove all modal backdrops
+      $('.modal-backdrop').remove();
+      
+      // Reset body classes and styles
       $('body').removeClass('modal-open');
       $('body').css('padding-right', '');
+      $('body').css('overflow', '');
+      
+      // Hide the admin login modal specifically
+      $('#admin_login_modal').hide();
     ")
+    
+    # Redirect to homepage immediately
     updateTabItems(session, "student_menu", "locations")
+    
     showNotification("Logout berhasil! Diarahkan ke halaman utama.", type = "message")
   })
   
@@ -658,7 +682,11 @@ server <- function(input, output, session) {
                         actionButton(paste0("register_", i), "📝 Daftar Sekarang", 
                                      class = "register-btn",
                                      style = "width: 100%;",
-                                     onclick = paste0("Shiny.setInputValue('selected_location_id', '", loc$id_lokasi, "', {priority: 'event'}); Shiny.setInputValue('show_registration_modal', Math.random(), {priority: 'event'});"))
+                                     onclick = paste0("
+                                       console.log('Button clicked for location ID: ", loc$id_lokasi, "');
+                                       Shiny.setInputValue('selected_location_id', '", loc$id_lokasi, "', {priority: 'event'}); 
+                                       Shiny.setInputValue('show_registration_modal', Math.random(), {priority: 'event'});
+                                     "))
                       } else {
                         span("⏰ Periode pendaftaran tidak aktif", 
                              class = "text-muted", 
@@ -679,15 +707,19 @@ server <- function(input, output, session) {
   
   # Handle location selection and show registration modal
   observeEvent(input$selected_location_id, {
-    if (!is.null(input$selected_location_id)) {
-      lokasi <- values$lokasi_data[values$lokasi_data$id_lokasi == input$selected_location_id, ]
-      if (nrow(lokasi) > 0) {
-        values$selected_location <- lokasi[1, ]
-        values$show_registration_modal <- TRUE
-        updateSelectInput(session, "reg_program_studi", choices = lokasi$program_studi[[1]])
-      }
+    req(input$selected_location_id)
+    message("Location selected with ID: ", input$selected_location_id)
+    
+    lokasi <- values$lokasi_data[values$lokasi_data$id_lokasi == input$selected_location_id, ]
+    if (nrow(lokasi) > 0) {
+      values$selected_location <- lokasi[1, ]
+      values$show_registration_modal <- TRUE
+      updateSelectInput(session, "reg_program_studi", choices = lokasi$program_studi[[1]])
+      message("Registration modal should now show")
+    } else {
+      message("No location found with ID: ", input$selected_location_id)
     }
-  })
+  }, ignoreInit = TRUE)
   
   # Show/hide registration modal
   output$show_registration_modal <- reactive({
@@ -697,10 +729,10 @@ server <- function(input, output, session) {
   
   # Registration modal trigger
   observeEvent(input$show_registration_modal, {
-    if (!is.null(input$show_registration_modal)) {
-      values$show_registration_modal <- TRUE
-    }
-  })
+    req(input$show_registration_modal)
+    message("Show registration modal triggered: ", input$show_registration_modal)
+    values$show_registration_modal <- TRUE
+  }, ignoreInit = TRUE)
   
   # Registration form outputs
   output$selected_location_info <- renderText({
@@ -743,6 +775,10 @@ server <- function(input, output, session) {
     req(input$reg_nama, input$reg_program_studi, input$reg_kontak, input$reg_usulan_dosen, input$reg_alasan)
     
     tryCatch({
+      # Debug: Print current data state
+      message("Current pendaftaran data rows: ", nrow(values$pendaftaran_data))
+      message("Submitting registration for: ", input$reg_nama)
+      
       # Basic validation
       if (is.null(values$selected_location)) {
         showNotification("Error: Tidak ada lokasi yang dipilih", type = "error")
@@ -825,21 +861,39 @@ server <- function(input, output, session) {
         pilihan_lokasi = values$selected_location$nama_lokasi,
         alasan_pemilihan = input$reg_alasan,
         usulan_dosen_pembimbing = input$reg_usulan_dosen,
-        cv_mahasiswa_path = doc_paths[["reg_cv_mahasiswa"]],
-        form_rekomendasi_prodi_path = doc_paths[["reg_form_rekomendasi"]],
-        form_komitmen_mahasiswa_path = doc_paths[["reg_form_komitmen"]],
-        transkrip_nilai_path = doc_paths[["reg_transkrip_nilai"]],
+        cv_mahasiswa_path = ifelse(is.null(doc_paths[["reg_cv_mahasiswa"]]), "", doc_paths[["reg_cv_mahasiswa"]]),
+        form_rekomendasi_prodi_path = ifelse(is.null(doc_paths[["reg_form_rekomendasi"]]), "", doc_paths[["reg_form_rekomendasi"]]),
+        form_komitmen_mahasiswa_path = ifelse(is.null(doc_paths[["reg_form_komitmen"]]), "", doc_paths[["reg_form_komitmen"]]),
+        transkrip_nilai_path = ifelse(is.null(doc_paths[["reg_transkrip_nilai"]]), "", doc_paths[["reg_transkrip_nilai"]]),
         status_pendaftaran = "Diajukan",
         alasan_penolakan = NA,
         stringsAsFactors = FALSE
       )
       
+      # Debug: Print new registration
+      message("New registration created:")
+      print(new_registration)
+      
       # Add to data
       values$pendaftaran_data <- rbind(values$pendaftaran_data, new_registration)
       
-      # Save to RDS file
-      if (!dir.exists("data")) dir.create("data")
-      saveRDS(values$pendaftaran_data, "data/pendaftaran_data.rds")
+      # Save to RDS file - Enhanced with better error handling
+      tryCatch({
+        if (!dir.exists("data")) dir.create("data", recursive = TRUE)
+        saveRDS(values$pendaftaran_data, "data/pendaftaran_data.rds")
+        message("Registration data saved successfully to data/pendaftaran_data.rds")
+        message("Total registrations now: ", nrow(values$pendaftaran_data))
+        
+        # Verify the save worked
+        if (file.exists("data/pendaftaran_data.rds")) {
+          test_read <- readRDS("data/pendaftaran_data.rds")
+          message("Verification: File contains ", nrow(test_read), " records")
+        }
+        
+      }, error = function(e) {
+        message("Error saving registration data: ", e$message)
+        showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
+      })
       
       # Show success message
       showModal(modalDialog(
@@ -863,7 +917,7 @@ server <- function(input, output, session) {
             )
         ),
         footer = div(style = "text-align: center;",
-                     modalButton("✅ Mengerti", class = "btn btn-success")
+                     modalButton("✅ Mengerti")
         ),
         easyClose = FALSE
       ))
@@ -878,6 +932,7 @@ server <- function(input, output, session) {
       updateTextAreaInput(session, "reg_alasan", value = "")
       
     }, error = function(e) {
+      message("Error in registration submission: ", e$message)
       showModal(modalDialog(
         title = "❌ Error",
         div(class = "alert alert-danger", paste("Terjadi kesalahan:", e$message)),
