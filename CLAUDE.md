@@ -59,7 +59,7 @@ Requirement/       # Business requirements documentation
 - Only one active registration period allowed
 - Students limited to one registration per period (unless rejected)
 - Location quotas enforced automatically
-- Required documents: CV, recommendation form, commitment form, transcript (all PDF)
+- Required documents: Letter of Interest (PDF, max 5MB), CV, recommendation form, commitment form, transcript (all PDF, max 10MB each)
 - Category deletion blocked if used by locations
 
 ### Data Persistence Pattern

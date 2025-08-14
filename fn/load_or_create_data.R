@@ -87,7 +87,7 @@ load_or_create_data <- function() {
     pendaftaran_data <<- readRDS("data/pendaftaran_data.rds")
     # Validate structure - ensure all required columns exist
     required_cols <- c("id_pendaftaran", "timestamp", "nama_mahasiswa", "program_studi", 
-                       "kontak", "pilihan_lokasi", "alasan_pemilihan", "usulan_dosen_pembimbing",
+                       "kontak", "pilihan_lokasi", "letter_of_interest_path",
                        "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
                        "form_komitmen_mahasiswa_path", "transkrip_nilai_path", 
                        "status_pendaftaran", "alasan_penolakan")
@@ -112,8 +112,7 @@ load_or_create_data <- function() {
       program_studi = character(0),
       kontak = character(0),
       pilihan_lokasi = character(0),
-      alasan_pemilihan = character(0),
-      usulan_dosen_pembimbing = character(0),
+      letter_of_interest_path = character(0),
       cv_mahasiswa_path = character(0),
       form_rekomendasi_prodi_path = character(0),
       form_komitmen_mahasiswa_path = character(0),

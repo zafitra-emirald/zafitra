@@ -816,11 +816,13 @@ server <- function(input, output, session) {
       updateTextInput(session, "reg_nama", value = "")
       updateSelectInput(session, "reg_program_studi", selected = character(0))
       updateTextInput(session, "reg_kontak", value = "")
+      updateTextInput(session, "reg_usulan_dosen", value = "")
+      updateTextAreaInput(session, "reg_alasan", value = "")
       
       # FIXED: Comprehensive file inputs clearing that persists across modal reopens
       shinyjs::runjs("
           // FIXED: Method 1 - Direct DOM manipulation for file inputs
-          var fileInputIds = ['reg_letter_of_interest', 'reg_cv_mahasiswa', 'reg_form_rekomendasi', 'reg_form_komitmen', 'reg_transkrip_nilai'];
+          var fileInputIds = ['reg_cv_mahasiswa', 'reg_form_rekomendasi', 'reg_form_komitmen', 'reg_transkrip_nilai'];
           
           fileInputIds.forEach(function(inputId) {
             var input = document.getElementById(inputId);
@@ -955,8 +957,8 @@ server <- function(input, output, session) {
       # Step 4: FIXED - Complete modal cleanup with registration modal removal
       shinyjs::runjs("
           // Remove all modals and backdrops
-          // FIXED: Removed global modal hide to preserve admin login modal
-          // FIXED: Removed global modal remove to preserve admin login modal
+          $('.modal').modal('hide');
+          $('.modal').remove();
           $('.modal-backdrop').remove();
           
           // Reset body state
@@ -966,12 +968,23 @@ server <- function(input, output, session) {
           $('body').css('overflow-x', '');
           $('body').css('overflow-y', '');
           
-          // FIXED: Safe cleanup - preserve admin login modal
-          // Only remove modal backdrops, not modal elements themselves
+          // Force remove any remaining modal artifacts
+          $('[id*=\"modal\"]').remove();
+          $('.fade.show').remove();
+          
+          // Reset any modal-related classes
+          $('*').removeClass('modal-backdrop');
+          
+          // Ensure page is scrollable again
+          $(document).off('touchmove.modal');
+          
+          // FIXED: Specifically target registration modal cleanup
+          $('#registration_modal').modal('hide');
+          $('#registration_modal').remove();
           
           // Clear any lingering modal states
           setTimeout(function() {
-            // FIXED: Removed global modal remove to preserve admin login modal
+            $('.modal').remove();
             $('.modal-backdrop').remove();
             $('body').removeClass('modal-open');
             $('body').css('padding-right', '');
@@ -998,8 +1011,8 @@ server <- function(input, output, session) {
       
       # Emergency modal cleanup
       shinyjs::runjs("
-          // FIXED: Removed global modal hide to preserve admin login modal
-          // FIXED: Removed global modal remove to preserve admin login modal
+          $('.modal').modal('hide');
+          $('.modal').remove();
           $('.modal-backdrop').remove();
           $('body').removeClass('modal-open');
           $('body').css('padding-right', '');
@@ -1007,7 +1020,7 @@ server <- function(input, output, session) {
           
           // Force cleanup
           setTimeout(function() {
-            // FIXED: Removed global modal remove to preserve admin login modal
+            $('.modal').remove();
             $('.modal-backdrop').remove();
             $('body').removeClass('modal-open');
           }, 100);
@@ -1024,6 +1037,8 @@ server <- function(input, output, session) {
       updateTextInput(session, "reg_nama", value = "")
       updateSelectInput(session, "reg_program_studi", selected = character(0))
       updateTextInput(session, "reg_kontak", value = "")
+      updateTextInput(session, "reg_usulan_dosen", value = "")
+      updateTextAreaInput(session, "reg_alasan", value = "")
       
       # FIXED: Comprehensive file inputs clearing that works across sessions
       shinyjs::runjs("
@@ -1394,7 +1409,7 @@ observeEvent(input$admin_logout_btn, {
   
   # Complete modal cleanup
   shinyjs::runjs("
-      // FIXED: Removed global modal hide to preserve admin login modal
+      $('.modal').modal('hide');
       $('.modal-backdrop').remove();
       $('body').removeClass('modal-open');
       $('body').css('padding-right', '');
@@ -2087,12 +2102,11 @@ reset_registration_form <- function() {
   updateTextInput(session, "reg_nama", value = "")
   updateSelectInput(session, "reg_program_studi", selected = character(0))
   updateTextInput(session, "reg_kontak", value = "")
-# REMOVED: updateTextInput(session, "reg_usulan_dosen", value = "") - field no longer exists
-# REMOVED: updateTextAreaInput(session, "reg_alasan", value = "") - replaced with Letter of Interest upload
+  updateTextInput(session, "reg_usulan_dosen", value = "")
+  updateTextAreaInput(session, "reg_alasan", value = "")
   
   # Clear file inputs
   shinyjs::runjs("
-        $('#reg_letter_of_interest').val('');
         $('#reg_cv_mahasiswa').val('');
         $('#reg_form_rekomendasi').val('');
         $('#reg_form_komitmen').val('');
@@ -2124,7 +2138,7 @@ observeEvent(input$close_registration_modal, {
 
 # Registration submission
 observeEvent(input$submit_registration, {
-  req(input$reg_nama, input$reg_program_studi, input$reg_kontak)
+  req(input$reg_nama, input$reg_program_studi, input$reg_kontak, input$reg_usulan_dosen, input$reg_alasan)
   
   tryCatch({
     # Validate registration eligibility
@@ -2155,7 +2169,6 @@ observeEvent(input$submit_registration, {
     
     # Validate documents
     doc_validation <- validate_documents(list(
-      reg_letter_of_interest = input$reg_letter_of_interest,
       reg_cv_mahasiswa = input$reg_cv_mahasiswa,
       reg_form_rekomendasi = input$reg_form_rekomendasi,
       reg_form_komitmen = input$reg_form_komitmen,
@@ -2163,18 +2176,7 @@ observeEvent(input$submit_registration, {
     ))
     
     if (!doc_validation$valid) {
-      # Check for file size error first
-      if(!is.null(doc_validation$error)) {
-        showModal(modalDialog(
-          title = "📎 File Size Error",
-          div(class = "alert alert-danger", doc_validation$error),
-          footer = modalButton("OK")
-        ))
-        return()
-      }
-      
       missing_doc_names <- c(
-        reg_letter_of_interest = "Letter of Interest",
         reg_cv_mahasiswa = "CV Mahasiswa",
         reg_form_rekomendasi = "Form Rekomendasi Program Studi", 
         reg_form_komitmen = "Form Komitmen Mahasiswa",
@@ -2201,7 +2203,7 @@ observeEvent(input$submit_registration, {
     upload_dir <- "www/documents"
     if (!dir.exists(upload_dir)) dir.create(upload_dir, recursive = TRUE)
     
-    required_docs <- c("reg_letter_of_interest", "reg_cv_mahasiswa", "reg_form_rekomendasi", "reg_form_komitmen", "reg_transkrip_nilai")
+    required_docs <- c("reg_cv_mahasiswa", "reg_form_rekomendasi", "reg_form_komitmen", "reg_transkrip_nilai")
     
     for (doc in required_docs) {
       if (!is.null(input[[doc]])) {
@@ -2224,7 +2226,8 @@ observeEvent(input$submit_registration, {
       program_studi = input$reg_program_studi,
       kontak = input$reg_kontak,
       pilihan_lokasi = values$selected_location$nama_lokasi,
-      letter_of_interest_path = ifelse(is.null(doc_paths[["reg_letter_of_interest"]]), "", doc_paths[["reg_letter_of_interest"]]),
+      alasan_pemilihan = input$reg_alasan,
+      usulan_dosen_pembimbing = input$reg_usulan_dosen,
       cv_mahasiswa_path = ifelse(is.null(doc_paths[["reg_cv_mahasiswa"]]), "", doc_paths[["reg_cv_mahasiswa"]]),
       form_rekomendasi_prodi_path = ifelse(is.null(doc_paths[["reg_form_rekomendasi"]]), "", doc_paths[["reg_form_rekomendasi"]]),
       form_komitmen_mahasiswa_path = ifelse(is.null(doc_paths[["reg_form_komitmen"]]), "", doc_paths[["reg_form_komitmen"]]),
@@ -2553,7 +2556,7 @@ observeEvent(input$view_registration_detail, {
   
   tryCatch({
     shinyjs::runjs("
-          // FIXED: Removed global modal hide to preserve admin login modal
+          $('.modal').modal('hide');
           $('.modal-backdrop').remove();
           $('body').removeClass('modal-open');
           $('body').css('padding-right', '');
@@ -2668,7 +2671,7 @@ observeEvent(input$approve_registration_id, {
   
   tryCatch({
     shinyjs::runjs("
-          // FIXED: Removed global modal hide to preserve admin login modal
+          $('.modal').modal('hide');
           $('.modal-backdrop').remove();
           $('body').removeClass('modal-open');
           $('body').css('padding-right', '');
@@ -2725,7 +2728,7 @@ observeEvent(input$reject_registration_id, {
   req(input$reject_registration_id)
   
   shinyjs::runjs("
-        // FIXED: Removed global modal hide to preserve admin login modal
+        $('.modal').modal('hide');
         $('.modal-backdrop').remove();
         $('body').removeClass('modal-open');
         $('body').css('padding-right', '');

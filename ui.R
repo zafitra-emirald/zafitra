@@ -522,28 +522,27 @@ ui <- dashboardPage(
                     )
                   ),
                   fluidRow(
-                    column(6,
+                    column(12,
                            textInput("reg_kontak", "Kontak (WhatsApp):", 
                                      placeholder = "08xxxxxxxxxx")
-                    ),
-                    column(6,
-                           textInput("reg_usulan_dosen", "Usulan Dosen Pembimbing:", 
-                                     placeholder = "Nama lengkap dosen pembimbing")
                     )
                   )
               ),
               
-              # Essay Section
+              # Letter of Interest Upload Section
               div(style = "border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 20px;",
-                  h5("💭 Alasan Pemilihan Lokasi", style = "color: #007bff; margin-bottom: 15px;"),
-                  p("Essay tentang isu strategis yang menarik untuk Anda, respon dalam bentuk program/project, dan gambaran awal ide project:", 
+                  h5("📄 Letter of Interest", style = "color: #007bff; margin-bottom: 15px;"),
+                  p("Upload surat minat dalam format PDF yang menjelaskan alasan pemilihan lokasi, isu strategis yang menarik, dan rencana kontribusi Anda:", 
                     style = "color: #666; font-size: 0.9em; margin-bottom: 10px;"),
-                  div(style = "background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.85em;",
-                      "💡 Tips: Jelaskan secara detail mengapa Anda tertarik dengan isu strategis di lokasi ini dan bagaimana rencana kontribusi Anda."
+                  div(style = "background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 0.85em;",
+                      "💡 Format: PDF | Ukuran maksimal: 5MB | Pastikan surat minat mencakup motivasi dan ide project yang akan dijalankan."
                   ),
-                  textAreaInput("reg_alasan", "", 
-                                placeholder = "Tulis essay Anda di sini...", 
-                                rows = 6, width = "100%")
+                  fileInput("reg_letter_of_interest", 
+                           label = NULL,
+                           accept = ".pdf",
+                           placeholder = "Pilih file PDF...",
+                           buttonLabel = "Browse",
+                           multiple = FALSE)
               ),
               
               # Document Upload Section
