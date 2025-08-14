@@ -4,105 +4,140 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **Labsos (Laboratorium Sosial) Information System** built with R Shiny. It's a web application for managing social laboratory programs where students can register for community service locations. The system includes both student-facing registration features and admin management capabilities.
+This is a **Labsos (Laboratorium Sosial) Information System** built with R Shiny. It's a web application for managing social laboratory programs where students register for community service locations and administrators manage the entire program lifecycle.
 
 ## Key Technologies & Dependencies
 
-- **R Shiny**: Main web framework using `shiny`, `shinydashboard`
-- **Data handling**: `DT` (DataTables), `dplyr` for data manipulation
-- **UI enhancement**: `shinyjs` for JavaScript functionality
-- **Data storage**: RDS files for persistent storage (file-based, no database)
-
-## Project Structure
-
-The repository contains two versions:
-- **Root level**: `global.R`, `ui.R`, `server.R` (main application)
-- **labsosv4/**: Subdirectory with version 4 files (appears to be a duplicate/version)
-
-### Core Architecture
-
-1. **global.R**: Global configuration, constants, data loading/saving functions, authentication
-2. **ui.R**: Complete UI definition with custom CSS, modals, dashboard layout
-3. **server.R**: Server-side logic with reactive values, event handling, CRUD operations
-
-### Data Models
-
-The system manages four main data entities stored as RDS files:
-- **kategori_data.rds**: Categories (Pendidikan, Kesehatan, Teknologi)
-- **periode_data.rds**: Registration periods with date ranges and status
-- **lokasi_data.rds**: Locations with descriptions, quotas, and program studi mappings
-- **pendaftaran_data.rds**: Student registrations with documents and status
-
-### Key Functions & Modules
-
-1. **Authentication**: Simple admin login (admin/admin123)
-2. **Master Data Management**: CRUD operations for categories, periods, locations
-3. **Student Registration**: Multi-step registration with document uploads
-4. **Data Persistence**: File-based storage with automatic data loading/saving
+- **R Shiny + Shinydashboard**: Web framework with dashboard layout
+- **DT**: DataTables for interactive data display
+- **dplyr**: Data manipulation and processing
+- **shinyjs**: JavaScript functionality enhancement
+- **File-based storage**: RDS files for persistence (no external database)
 
 ## Development Commands
 
-This is an R Shiny application. Common commands:
-
 ```r
-# Run the application
+# Install dependencies
+install.packages(c("shiny", "shinydashboard", "DT", "dplyr", "shinyjs"))
+
+# Run the application from project root
 shiny::runApp()
 
-# Or run from specific directory
-shiny::runApp("labsosv4/")
-
-# Install required packages if missing
-install.packages(c("shiny", "shinydashboard", "DT", "dplyr", "shinyjs"))
+# Run with auto-reload during development
+options(shiny.autoreload = TRUE)
+shiny::runApp()
 ```
 
-## Code Patterns & Architecture
+## Core Architecture
 
-### Reactive Pattern
-- Uses `reactiveValues()` for state management
-- `observeEvent()` for handling user interactions
-- `renderUI()`, `renderDataTable()` for dynamic content
+### Three-File Structure
+1. **global.R**: Configuration, constants, data functions, business logic
+2. **ui.R**: Complete UI definition with custom CSS and responsive design  
+3. **server.R**: Reactive server logic, event handlers, data operations
 
-### Data Flow
-1. **Initialization**: `load_or_create_data()` creates default data if files don't exist
-2. **CRUD Operations**: Add/Edit/Delete functions with validation
-3. **File Storage**: Automatic saving to RDS files in `data/` directory
-4. **File Uploads**: Documents saved to `www/documents/`, images to `www/images/`
+### Data Model (RDS files)
+- **kategori_data.rds**: Location categories (Pendidikan, Kesehatan, Teknologi)
+- **periode_data.rds**: Time-bounded registration periods with status
+- **lokasi_data.rds**: Community locations with quotas and program restrictions
+- **pendaftaran_data.rds**: Student applications with documents and approval status
 
-### UI Architecture
-- **Dashboard Layout**: Two-panel sidebar with conditional menus
-- **Modal System**: Custom modal dialogs for registration and confirmations
-- **Card-based Design**: Location cards with hover effects and responsive layout
-- **Custom CSS**: Extensive styling for professional appearance
+### File Organization
+```
+data/              # Auto-created for RDS storage
+www/documents/     # Student document uploads (PDF)
+www/images/        # Location photos
+Requirement/       # Business requirements documentation
+```
 
-### Security & Validation
-- Basic admin authentication (hardcoded credentials)
-- File upload validation (PDF documents, image formats)
-- Registration period validation
-- Duplicate registration prevention
-- Category usage checking before deletion
+## Application Flow & Business Logic
 
-## Important Constants & Configuration
+### User Workflows
+1. **Student Journey**: Browse locations → Register → Upload documents → Check status
+2. **Admin Journey**: Login → Manage master data → Review applications → Approve/reject
 
-- **Program Studi Options**: Fixed list of 11 academic programs in `global.R:17-29`
-- **Admin Credentials**: Username "admin", Password "admin123" in `global.R:32-36`
-- **File Paths**: 
-  - Data: `data/*.rds`
-  - Documents: `www/documents/`
-  - Images: `www/images/`
+### Key Business Rules
+- Only one active registration period allowed
+- Students limited to one registration per period (unless rejected)
+- Location quotas enforced automatically
+- Required documents: CV, recommendation form, commitment form, transcript (all PDF)
+- Category deletion blocked if used by locations
 
-## Development Notes
+### Data Persistence Pattern
+- Auto-initialization via `load_or_create_data()` in global.R:43
+- Immediate persistence: all changes saved to RDS files
+- File structure created automatically if missing
 
-- **No Database**: Uses RDS files for persistence - simple but not scalable
-- **File Security**: Uploads stored in `www/` directory (publicly accessible)
-- **Single Admin**: Only one admin user supported
-- **No Testing**: No automated tests present
-- **Version Control**: Two versions present (root and labsosv4) - labsosv4 appears newer
+## Critical Architecture Details
 
-## Common Development Tasks
+### Reactive Programming Structure
+- `reactiveValues()` for application state management
+- `observeEvent()` handlers for user actions
+- `renderDataTable()` and `renderUI()` for dynamic content
+- `conditionalPanel()` for role-based UI switching
 
-When working with this codebase:
-1. **Adding new fields**: Update data frames in `global.R`, UI forms, and server validation
-2. **UI changes**: Modify custom CSS in `ui.R:4-171` for styling
-3. **New features**: Follow the modular pattern with clear section comments
-4. **Data migration**: Handle data structure changes in `load_or_create_data()`
-5. **File handling**: Ensure proper directory creation and file path management
+### Authentication & Security
+- Hardcoded admin credentials: username "admin", password "admin123"
+- Session-based authentication (no persistent sessions)
+- File uploads stored in publicly accessible `www/` directory
+- Basic validation only - no advanced security measures
+
+### Configuration Constants
+- **Program Studi**: 11 predefined academic programs (global.R:17-29)
+- **Admin Credentials**: Stored in global.R:32-36
+- **File Size Limits**: 10MB for documents, no explicit limit for images
+
+## Development Patterns & Conventions
+
+### Adding New Features
+1. **Business Logic**: Add functions to global.R with error handling
+2. **UI Components**: Follow existing modal and card patterns in ui.R
+3. **Server Handlers**: Use `observeEvent()` with consistent error notification patterns
+4. **Data Changes**: Update `load_or_create_data()` for schema changes
+
+### Code Style Conventions
+- Function names: snake_case (e.g., `save_kategori_data()`)
+- Reactive values: camelCase (e.g., `values$adminLoggedIn`)
+- UI elements: kebab-case IDs (e.g., `admin_login_btn`)
+- File naming: descriptive with underscores
+
+### Common Modification Points
+- **global.R:17-29**: Program Studi options
+- **ui.R:4-176**: Custom CSS styling  
+- **server.R:9-20**: Reactive values initialization
+- **Data schema**: Modify `load_or_create_data()` function
+
+## Important File Locations & Functions
+
+### Key Functions (global.R)
+- `load_or_create_data()`: Data initialization and schema setup
+- `validate_admin()`: Authentication logic  
+- `is_registration_open()`: Period validation
+- `check_category_usage()`: Referential integrity checking
+- `get_current_quota_status()`: Real-time quota calculations
+
+### Server Event Handlers (server.R)
+- Registration submission: Lines 400+ (complex multi-step validation)
+- Admin CRUD operations: Lines 200-800 (category, period, location management)
+- File upload processing: Integrated throughout registration handlers
+- Modal management: Custom JavaScript integration for UX
+
+### UI Components (ui.R)  
+- Location cards: Dynamic generation with quota display
+- Registration modal: Multi-step form with document uploads
+- Admin tables: DataTables with inline editing
+- Custom CSS: Lines 4-176 for professional styling
+
+## Debugging & Development Notes
+
+- **Data Issues**: Check `data/` directory creation and RDS file permissions
+- **Upload Problems**: Verify `www/documents/` and `www/images/` directories exist
+- **Modal Issues**: JavaScript conflicts may require browser refresh
+- **Performance**: Large datasets may slow DataTable rendering
+- **Session Management**: Admin logout clears all reactive values
+
+## Requirements Documentation
+
+Detailed business requirements available in `Requirement/` directory:
+- Functional requirements with use cases
+- Data catalogs for each entity  
+- Complete user story specifications
