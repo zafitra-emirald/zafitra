@@ -734,17 +734,32 @@ server <- function(input, output, session) {
   # 7. ENHANCED REGISTRATION FUNCTIONALITY
   # ================================
   
-  # Handle location selection and show registration modal
+  # FIXED: Handle location selection and show registration modal with form reset
   observeEvent(input$selected_location_id, {
     req(input$selected_location_id)
     
     tryCatch({
+      # FIXED: Always reset form when opening modal (whether new location or reopening)
+      reset_registration_form()
+      
       lokasi <- values$lokasi_data[values$lokasi_data$id_lokasi == input$selected_location_id, ]
       if (nrow(lokasi) > 0) {
         values$selected_location <- lokasi[1, ]
         values$show_registration_modal <- TRUE
         updateSelectInput(session, "reg_program_studi", choices = lokasi$program_studi[[1]])
-        showNotification("Lokasi dipilih. Form pendaftaran siap diisi.", type = "message")
+        
+        # FIXED: Additional delay to ensure file inputs are properly cleared
+        shinyjs::delay(200, {
+          shinyjs::runjs("
+            // Extra insurance that file inputs are cleared when modal opens
+            $('input[type=file]').each(function() {
+              this.value = '';
+              $(this).val('');
+            });
+          ")
+        })
+        
+        showNotification("Lokasi dipilih. Form telah dibersihkan dan siap diisi.", type = "message")
       } else {
         showNotification("Error: Lokasi tidak ditemukan", type = "error")
       }
@@ -795,7 +810,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # Enhanced reset registration form function
+  # FIXED: Enhanced reset registration form function with comprehensive file input clearing
   reset_registration_form <- function() {
     tryCatch({
       # Reset text inputs
@@ -805,31 +820,49 @@ server <- function(input, output, session) {
       updateTextInput(session, "reg_usulan_dosen", value = "")
       updateTextAreaInput(session, "reg_alasan", value = "")
       
-      # Clear file inputs using JavaScript
+      # FIXED: Comprehensive file inputs clearing that persists across modal reopens
       shinyjs::runjs("
-          // Clear all file inputs
-          $('#reg_cv_mahasiswa').val('');
-          $('#reg_form_rekomendasi').val('');
-          $('#reg_form_komitmen').val('');
-          $('#reg_transkrip_nilai').val('');
+          // FIXED: Method 1 - Direct DOM manipulation for file inputs
+          var fileInputIds = ['reg_cv_mahasiswa', 'reg_form_rekomendasi', 'reg_form_komitmen', 'reg_transkrip_nilai'];
           
-          // Clear any file input controls
-          $('.form-control-file').each(function() {
-            $(this).val('');
-          });
-          
-          // Reset file input labels if they exist
-          $('input[type=file]').each(function() {
-            var label = $(this).siblings('label');
-            if (label.length) {
-              label.text(label.data('original-text') || 'Choose file');
+          fileInputIds.forEach(function(inputId) {
+            var input = document.getElementById(inputId);
+            if (input) {
+              // Reset value
+              input.value = '';
+              input.files = null;
+              
+              // Clone and replace to ensure complete reset (most reliable method)
+              var newInput = input.cloneNode(false);
+              input.parentNode.replaceChild(newInput, input);
             }
           });
+          
+          // FIXED: Method 2 - jQuery backup clearing
+          $('input[type=file]').each(function() {
+            this.value = '';
+            $(this).val('');
+            
+            // Clear visual indicators
+            $(this).removeClass('is-valid is-invalid has-file file-selected');
+            $(this).siblings('label, .custom-file-label').text('Choose file');
+            $(this).next('.file-feedback, .file-name').text('');
+          });
+          
+          // FIXED: Method 3 - Clear Shiny file input bindings
+          if (window.Shiny && window.Shiny.inputBindings) {
+            fileInputIds.forEach(function(inputId) {
+              try {
+                window.Shiny.inputBindings.getInputBinding('#' + inputId)?.setValue(document.getElementById(inputId), null);
+              } catch(e) {}
+            });
+          }
+          
+          console.log('File inputs completely reset and cleared');
         ")
       
-      showNotification("Form pendaftaran telah direset", type = "message")
     }, error = function(e) {
-      showNotification("Warning: Gagal mereset semua field form", type = "warning")
+      console.log("Error resetting form:", e)
     })
   }
   
@@ -2217,32 +2250,54 @@ observeEvent(input$submit_registration, {
       showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
     })
     
-    # Show success message
-    showModal(modalDialog(
-      title = div(style = "text-align: center;",
-                  h3("🎉 Pendaftaran Berhasil!", style = "color: #28a745;")
-      ),
-      div(style = "text-align: center; padding: 20px;",
-          div(style = "background: #d4edda; padding: 20px; border-radius: 10px; margin-bottom: 20px;",
-              h4("📋 Detail Pendaftaran", style = "color: #155724; margin-bottom: 15px;"),
-              p(strong("ID Pendaftaran: "), span(new_id, style = "color: #007bff; font-weight: bold;")),
-              p(strong("Nama: "), input$reg_nama),
-              p(strong("Lokasi: "), values$selected_location$nama_lokasi),
-              p(strong("Program Studi: "), input$reg_program_studi),
-              p(strong("Status: "), span("⏳ Diajukan", style = "color: #856404; font-weight: bold;"))
-          ),
-          div(style = "background: #fff3cd; padding: 15px; border-radius: 8px;",
-              h5("📌 Langkah Selanjutnya:", style = "color: #856404;"),
-              p("✅ Pendaftaran Anda akan diproses oleh admin", style = "margin: 5px 0;"),
-              p("📧 Anda akan dihubungi melalui kontak yang diberikan", style = "margin: 5px 0;"),
-              p("📋 Simpan ID Pendaftaran untuk referensi", style = "margin: 5px 0;")
-          )
-      ),
-      footer = div(style = "text-align: center;",
-                   actionButton("close_success_modal", "✅ Mengerti", class = "btn btn-success")
-      ),
-      easyClose = FALSE
-    ))
+    # FIXED: Store location name before clearing for success modal
+    selected_location_name <- values$selected_location$nama_lokasi
+    
+    # FIXED: Close registration modal and reset form BEFORE showing success modal
+    values$show_registration_modal <- FALSE
+    reset_registration_form()
+    
+    # FIXED: Clean up registration modal immediately
+    shinyjs::runjs("
+      // Close the registration modal immediately
+      $('.modal').modal('hide');
+      $('.modal-backdrop').remove();
+      $('body').removeClass('modal-open');
+      $('body').css('padding-right', '');
+      $('body').css('overflow', '');
+    ")
+    
+    # FIXED: Small delay before showing success modal to ensure cleanup
+    shinyjs::delay(300, {
+      showModal(modalDialog(
+        title = div(style = "text-align: center;",
+                    h3("🎉 Pendaftaran Berhasil!", style = "color: #28a745;")
+        ),
+        div(style = "text-align: center; padding: 20px;",
+            div(style = "background: #d4edda; padding: 20px; border-radius: 10px; margin-bottom: 20px;",
+                h4("📋 Detail Pendaftaran", style = "color: #155724; margin-bottom: 15px;"),
+                p(strong("ID Pendaftaran: "), span(new_id, style = "color: #007bff; font-weight: bold;")),
+                p(strong("Nama: "), input$reg_nama),
+                p(strong("Lokasi: "), selected_location_name),
+                p(strong("Program Studi: "), input$reg_program_studi),
+                p(strong("Status: "), span("⏳ Diajukan", style = "color: #856404; font-weight: bold;"))
+            ),
+            div(style = "background: #fff3cd; padding: 15px; border-radius: 8px;",
+                h5("📌 Langkah Selanjutnya:", style = "color: #856404;"),
+                p("✅ Pendaftaran Anda akan diproses oleh admin", style = "margin: 5px 0;"),
+                p("📧 Anda akan dihubungi melalui kontak yang diberikan", style = "margin: 5px 0;"),
+                p("📋 Simpan ID Pendaftaran untuk referensi", style = "margin: 5px 0;")
+            )
+        ),
+        footer = div(style = "text-align: center;",
+                     actionButton("close_success_modal", "✅ Mengerti", class = "btn btn-success")
+        ),
+        easyClose = FALSE
+      ))
+    })
+    
+    # FIXED: Clear selected location after storing name for success modal
+    values$selected_location <- NULL
     
   }, error = function(e) {
     showModal(modalDialog(
