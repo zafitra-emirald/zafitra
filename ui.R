@@ -1,4 +1,4 @@
-# ui.R - Labsos Information System User Interface (Complete)
+# ui.R - Labsos Information System User Interface (Fixed Version)
 
 # Define custom CSS
 custom_css <- "
@@ -95,6 +95,11 @@ custom_css <- "
   background: #6c757d;
   cursor: not-allowed;
 }
+
+/* Quota status styling */
+.quota-available { color: #28a745; font-weight: bold; }
+.quota-limited { color: #ffc107; font-weight: bold; }
+.quota-full { color: #dc3545; font-weight: bold; }
 
 /* Welcome section */
 .welcome-section {
@@ -204,7 +209,8 @@ ui <- dashboardPage(
       condition = "!output.is_admin_logged_in",
       sidebarMenu(
         id = "student_menu",
-        menuItem("🏠 Beranda & Lokasi", tabName = "locations", icon = icon("home"))
+        menuItem("🏠 Beranda & Lokasi", tabName = "locations", icon = icon("home")),
+        menuItem("🔍 Cek Status", tabName = "status", icon = icon("search"))
       )
     ),
     
@@ -216,7 +222,8 @@ ui <- dashboardPage(
                  menuSubItem("Kategori", tabName = "master_kategori"),
                  menuSubItem("Periode", tabName = "master_periode"), 
                  menuSubItem("Lokasi", tabName = "master_lokasi")
-        )
+        ),
+        menuItem("Kelola Pendaftaran", tabName = "manage_registration", icon = icon("users"))
       )
     )
   ),
@@ -227,7 +234,7 @@ ui <- dashboardPage(
     conditionalPanel(
       condition = "!output.is_admin_logged_in",
       tabItems(
-        # Locations Tab
+        # Locations Tab (Homepage)
         tabItem(
           tabName = "locations",
           # Welcome Section
@@ -272,6 +279,48 @@ ui <- dashboardPage(
                          h4("Belum ada lokasi tersedia"),
                          p("Admin belum menambahkan lokasi. Silakan cek kembali nanti.")
                      )
+                   )
+            )
+          )
+        ),
+        
+        # FIXED: Status Check Tab for Students
+        tabItem(
+          tabName = "status",
+          fluidRow(
+            column(12,
+                   div(style = "background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);",
+                       h3("🔍 Cek Status Pendaftaran", style = "color: #007bff; text-align: center; margin-bottom: 25px;"),
+                       
+                       fluidRow(
+                         column(4,
+                                div(style = "border: 1px solid #ddd; padding: 20px; border-radius: 8px;",
+                                    h5("🔎 Pencarian", style = "color: #007bff; margin-bottom: 15px;"),
+                                    textInput("search_nama", "Nama Mahasiswa:", 
+                                              placeholder = "Masukkan nama Anda"),
+                                    dateInput("search_tanggal", "Tanggal Pendaftaran:", 
+                                              value = NULL),
+                                    selectInput("search_lokasi", "Lokasi:", 
+                                                choices = c("Semua Lokasi" = "")),
+                                    selectInput("search_status", "Status:", 
+                                                choices = c("Semua Status" = "", "Diajukan", "Disetujui", "Ditolak")),
+                                    div(style = "text-align: center; margin-top: 15px;",
+                                        actionButton("search_registration", "🔍 Cari Status", 
+                                                     class = "btn btn-primary", style = "width: 100%;")
+                                    ),
+                                    br(),
+                                    div(class = "alert alert-info", style = "margin-top: 15px; font-size: 0.9em;",
+                                        "💡 Tips: Gunakan nama lengkap atau sebagian nama untuk pencarian yang lebih akurat."
+                                    )
+                                )
+                         ),
+                         column(8,
+                                div(style = "border: 1px solid #ddd; padding: 20px; border-radius: 8px;",
+                                    h5("📊 Hasil Pencarian", style = "color: #007bff; margin-bottom: 15px;"),
+                                    DT::dataTableOutput("registration_results")
+                                )
+                         )
+                       )
                    )
             )
           )
@@ -377,6 +426,43 @@ ui <- dashboardPage(
                              "💡 Tips: Pilih minimal satu program studi. Kuota menentukan jumlah maksimal mahasiswa yang dapat mendaftar."
                          )
                        )
+                )
+              )
+            )
+          )
+        ),
+        
+        # FIXED: Manage Registrations Tab for Admin
+        tabItem(
+          tabName = "manage_registration",
+          fluidRow(
+            box(
+              title = "Kelola Data Pendaftar", status = "warning", solidHeader = TRUE, width = 12,
+              div(style = "margin-bottom: 20px;",
+                  h4("📋 Daftar Data Pendaftar Laboratorium Sosial"),
+                  p("Kelola semua data pendaftaran mahasiswa yang telah submit. Klik 'Detail' untuk melihat informasi lengkap dan dokumen. Klik 'Setujui' atau 'Tolak' untuk memproses pendaftaran.")
+              ),
+              
+              # Filter Section
+              fluidRow(
+                column(3,
+                       wellPanel(
+                         h5("🔍 Filter Data", style = "color: #007bff; margin-bottom: 15px;"),
+                         selectInput("admin_filter_lokasi", "Lokasi:", 
+                                     choices = c("Semua Lokasi" = "")),
+                         selectInput("admin_filter_status", "Status:",
+                                     choices = c("Semua Status" = "", "Diajukan", "Disetujui", "Ditolak")),
+                         selectInput("admin_filter_prodi", "Program Studi:",
+                                     choices = c("Semua Program Studi" = "", PROGRAM_STUDI_OPTIONS)),
+                         actionButton("admin_refresh", "🔄 Refresh Data", class = "btn btn-info", style = "width: 100%;"),
+                         br(), br(),
+                         div(class = "alert alert-info", style = "font-size: 0.9em;",
+                             "💡 Tips: Gunakan filter untuk mempermudah pencarian data pendaftar."
+                         )
+                       )
+                ),
+                column(9,
+                       DT::dataTableOutput("admin_registrations_table")
                 )
               )
             )

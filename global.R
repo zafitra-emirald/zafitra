@@ -1,4 +1,4 @@
-# global.R - Labsos Information System (Simplified Master Data)
+# global.R - Labsos Information System (Fixed Version)
 
 # ================================
 # 1. LOAD REQUIRED LIBRARIES
@@ -121,9 +121,28 @@ load_or_create_data <- function() {
     saveRDS(lokasi_data, "data/lokasi_data.rds")
   }
   
-  # Load or create Pendaftaran data
+  # Load or create Pendaftaran data - FIXED: proper structure
   if (file.exists("data/pendaftaran_data.rds")) {
     pendaftaran_data <<- readRDS("data/pendaftaran_data.rds")
+    # Validate structure - ensure all required columns exist
+    required_cols <- c("id_pendaftaran", "timestamp", "nama_mahasiswa", "program_studi", 
+                       "kontak", "pilihan_lokasi", "alasan_pemilihan", "usulan_dosen_pembimbing",
+                       "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
+                       "form_komitmen_mahasiswa_path", "transkrip_nilai_path", 
+                       "status_pendaftaran", "alasan_penolakan")
+    
+    for(col in required_cols) {
+      if(!col %in% names(pendaftaran_data)) {
+        if(col == "timestamp") {
+          pendaftaran_data[[col]] <- as.POSIXct(character(nrow(pendaftaran_data)))
+        } else if(col == "id_pendaftaran") {
+          pendaftaran_data[[col]] <- integer(nrow(pendaftaran_data))
+        } else {
+          pendaftaran_data[[col]] <- character(nrow(pendaftaran_data))
+        }
+      }
+    }
+    pendaftaran_data <<- pendaftaran_data
   } else {
     pendaftaran_data <<- data.frame(
       id_pendaftaran = integer(0),
@@ -180,7 +199,7 @@ validate_admin <- function(username, password) {
 }
 
 # ================================
-# 5. HELPER FUNCTIONS
+# 5. BUSINESS LOGIC FUNCTIONS
 # ================================
 
 # Check if registration is currently open
@@ -226,6 +245,152 @@ check_category_usage <- function(kategori_id, lokasi_data = NULL) {
   }
   
   return(list(can_delete = TRUE, reason = ""))
+}
+
+# NEW: Generate next registration ID
+get_next_registration_id <- function(pendaftaran_data = NULL) {
+  if(is.null(pendaftaran_data)) {
+    if(exists("pendaftaran_data")) {
+      pendaftaran_data <- get("pendaftaran_data", envir = .GlobalEnv)
+    } else {
+      return(1)
+    }
+  }
+  
+  if(nrow(pendaftaran_data) == 0) {
+    return(1)
+  } else {
+    return(max(pendaftaran_data$id_pendaftaran, na.rm = TRUE) + 1)
+  }
+}
+
+# NEW: Check registration eligibility
+check_registration_eligibility <- function(student_name, location_name, pendaftaran_data = NULL, periode_data = NULL) {
+  # Check if registration period is open
+  if(!is_registration_open(periode_data)) {
+    return(list(eligible = FALSE, reason = "Periode pendaftaran tidak aktif"))
+  }
+  
+  if(is.null(pendaftaran_data)) {
+    if(exists("pendaftaran_data")) {
+      pendaftaran_data <- get("pendaftaran_data", envir = .GlobalEnv)
+    } else {
+      return(list(eligible = TRUE, reason = ""))
+    }
+  }
+  
+  # Check if student already has active registration
+  existing <- pendaftaran_data[
+    pendaftaran_data$nama_mahasiswa == student_name & 
+      pendaftaran_data$status_pendaftaran %in% c("Diajukan", "Disetujui"), 
+  ]
+  
+  if(nrow(existing) > 0) {
+    return(list(eligible = FALSE, reason = "Sudah terdaftar di lokasi lain atau masih dalam proses review"))
+  }
+  
+  return(list(eligible = TRUE, reason = ""))
+}
+
+# NEW: Get current quota status for a location
+get_current_quota_status <- function(location_name, pendaftaran_data = NULL, lokasi_data = NULL) {
+  if(is.null(pendaftaran_data)) {
+    if(exists("pendaftaran_data")) {
+      pendaftaran_data <- get("pendaftaran_data", envir = .GlobalEnv)
+    }
+  }
+  
+  if(is.null(lokasi_data)) {
+    if(exists("lokasi_data")) {
+      lokasi_data <- get("lokasi_data", envir = .GlobalEnv)
+    }
+  }
+  
+  # Get location info
+  lokasi <- lokasi_data[lokasi_data$nama_lokasi == location_name, ]
+  if(nrow(lokasi) == 0) {
+    return(list(
+      total_quota = 0,
+      used_quota = 0,
+      available_quota = 0,
+      pending = 0,
+      approved = 0,
+      rejected = 0
+    ))
+  }
+  
+  # Count registrations for this location
+  registrations <- pendaftaran_data[pendaftaran_data$pilihan_lokasi == location_name, ]
+  
+  pending <- sum(registrations$status_pendaftaran == "Diajukan", na.rm = TRUE)
+  approved <- sum(registrations$status_pendaftaran == "Disetujui", na.rm = TRUE)
+  rejected <- sum(registrations$status_pendaftaran == "Ditolak", na.rm = TRUE)
+  
+  # Used quota includes both pending and approved
+  used_quota <- pending + approved
+  available_quota <- max(0, lokasi$kuota_mahasiswa - used_quota)
+  
+  return(list(
+    total_quota = lokasi$kuota_mahasiswa,
+    used_quota = used_quota,
+    available_quota = available_quota,
+    pending = pending,
+    approved = approved,
+    rejected = rejected
+  ))
+}
+
+# NEW: Validate document uploads
+validate_documents <- function(doc_list) {
+  required_docs <- c("reg_cv_mahasiswa", "reg_form_rekomendasi", "reg_form_komitmen", "reg_transkrip_nilai")
+  missing_docs <- character(0)
+  
+  for(doc in required_docs) {
+    if(is.null(doc_list[[doc]]) || is.null(doc_list[[doc]]$name)) {
+      missing_docs <- c(missing_docs, doc)
+    }
+  }
+  
+  if(length(missing_docs) > 0) {
+    return(list(valid = FALSE, missing = missing_docs))
+  }
+  
+  return(list(valid = TRUE, missing = character(0)))
+}
+
+# NEW: Search registrations with multiple criteria
+search_registrations <- function(nama = NULL, tanggal = NULL, lokasi = NULL, status = NULL, pendaftaran_data = NULL) {
+  if(is.null(pendaftaran_data)) {
+    if(exists("pendaftaran_data")) {
+      pendaftaran_data <- get("pendaftaran_data", envir = .GlobalEnv)
+    } else {
+      return(data.frame())
+    }
+  }
+  
+  result <- pendaftaran_data
+  
+  # Filter by name (partial match, case insensitive)
+  if(!is.null(nama) && nama != "") {
+    result <- result[grepl(nama, result$nama_mahasiswa, ignore.case = TRUE), ]
+  }
+  
+  # Filter by date (exact match)
+  if(!is.null(tanggal) && !is.na(tanggal)) {
+    result <- result[as.Date(result$timestamp) == tanggal, ]
+  }
+  
+  # Filter by location
+  if(!is.null(lokasi) && lokasi != "") {
+    result <- result[result$pilihan_lokasi == lokasi, ]
+  }
+  
+  # Filter by status
+  if(!is.null(status) && status != "") {
+    result <- result[result$status_pendaftaran == status, ]
+  }
+  
+  return(result)
 }
 
 # ================================
