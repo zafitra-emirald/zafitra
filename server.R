@@ -15,6 +15,9 @@ server <- function(input, output, session) {
     pendaftaran_data = pendaftaran_data,
     selected_location = NULL,
     show_registration_modal = FALSE,
+    show_photo_modal = FALSE,
+    show_admin_modal = FALSE,
+    selected_photo_location = NULL,
     last_registration_id = if(nrow(pendaftaran_data) > 0) max(pendaftaran_data$id_pendaftaran, na.rm = TRUE) else 0,
     last_update_timestamp = Sys.time()  # ENHANCED: Add timestamp for real-time updates
   )
@@ -29,21 +32,32 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "is_admin_logged_in", suspendWhenHidden = FALSE)
   
+  # Admin modal state output
+  output$show_admin_modal <- reactive({
+    values$show_admin_modal
+  })
+  outputOptions(output, "show_admin_modal", suspendWhenHidden = FALSE)
+  
+  # Admin login button handler
+  observeEvent(input$admin_login_btn, {
+    values$show_admin_modal <- TRUE
+  })
+  
   # Admin login process
   observeEvent(input$do_admin_login, {
     tryCatch({
       if (validate_admin(input$admin_username, input$admin_password)) {
         values$admin_logged_in <- TRUE
         values$login_error <- FALSE
+        values$current_tab <- "manage_registration"  # Set default menu to Kelola Data Pendaftaran
         
-        # Clean up login modal
-        shinyjs::runjs("
-          $('#admin_login_modal').hide();
-          $('.modal-backdrop').remove();
-          $('body').removeClass('modal-open');
-          $('body').css('padding-right', '');
-          $('body').css('overflow', '');
-        ")
+        # Set the active tab to Kelola Pendaftaran
+        updateTabItems(session, "admin_menu", "manage_registration")
+        
+        # Close login modal properly
+        values$show_admin_modal <- FALSE
+        updateTextInput(session, "admin_username", value = "")
+        updateTextInput(session, "admin_password", value = "")
         
         showNotification("Login berhasil! Selamat datang, Admin.", type = "message")
       } else {
@@ -55,27 +69,21 @@ server <- function(input, output, session) {
     })
   })
   
-  # Cancel/Close login modal
+  # Cancel/Close login modal - FIXED: Proper custom modal closing
   observeEvent(input$cancel_admin_login, {
     values$login_error <- FALSE
-    shinyjs::runjs("
-      $('#admin_login_modal').hide();
-      $('.modal-backdrop').remove();
-      $('body').removeClass('modal-open');
-      $('body').css('padding-right', '');
-      $('body').css('overflow', '');
-    ")
+    values$show_admin_modal <- FALSE
+    # Clear login inputs
+    updateTextInput(session, "admin_username", value = "")
+    updateTextInput(session, "admin_password", value = "")
   })
   
   observeEvent(input$close_admin_login, {
     values$login_error <- FALSE
-    shinyjs::runjs("
-      $('#admin_login_modal').hide();
-      $('.modal-backdrop').remove();
-      $('body').removeClass('modal-open');
-      $('body').css('padding-right', '');
-      $('body').css('overflow', '');
-    ")
+    values$show_admin_modal <- FALSE
+    # Clear login inputs
+    updateTextInput(session, "admin_username", value = "")
+    updateTextInput(session, "admin_password", value = "")
   })
   
   # Admin logout
@@ -92,13 +100,21 @@ server <- function(input, output, session) {
     values$selected_location <- NULL
     values$show_registration_modal <- FALSE
     
-    # FIXED: Specific modal cleanup - only admin login modal
+    # FIXED: Clean logout without affecting other modals
     shinyjs::runjs("
-      $('#admin_login_modal').modal('hide');
-      $('.modal-backdrop').remove();
-      $('body').removeClass('modal-open');
-      $('body').css('padding-right', '');
-      $('body').css('overflow', '');
+      // Only hide admin login modal if it's open
+      if($('#admin_login_modal').hasClass('show')) {
+        $('#admin_login_modal').modal('hide');
+      }
+      // Only remove body classes if no other modals are open
+      setTimeout(function() {
+        if($('.modal.show').length === 0) {
+          $('.modal-backdrop').remove();
+          $('body').removeClass('modal-open');
+          $('body').css('padding-right', '');
+          $('body').css('overflow', '');
+        }
+      }, 100);
     ")
     
     # Redirect to homepage
@@ -469,6 +485,8 @@ server <- function(input, output, session) {
       # Populate form fields
       updateTextInput(session, "lokasi_nama", value = lokasi$nama_lokasi)
       updateTextAreaInput(session, "lokasi_deskripsi", value = lokasi$deskripsi_lokasi)
+      updateTextAreaInput(session, "lokasi_alamat", value = ifelse("alamat_lokasi" %in% names(lokasi), lokasi$alamat_lokasi, ""))
+      updateTextInput(session, "lokasi_map", value = ifelse("map_lokasi" %in% names(lokasi), lokasi$map_lokasi, ""))
       updateSelectInput(session, "lokasi_kategori", selected = lokasi$kategori_lokasi)
       updateTextAreaInput(session, "lokasi_isu", value = lokasi$isu_strategis)
       updateSelectInput(session, "lokasi_prodi", selected = lokasi$program_studi[[1]])
@@ -485,21 +503,29 @@ server <- function(input, output, session) {
     req(input$lokasi_nama, input$lokasi_kategori)
     
     tryCatch({
-      # Handle file upload for foto_lokasi
+      # Handle multiple file uploads for foto_lokasi
       foto_url <- "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=250&fit=crop"
+      foto_url_list <- list()
       
       if (!is.null(input$lokasi_foto)) {
         # Create images directory if it doesn't exist
         if (!dir.exists("www/images")) dir.create("www/images", recursive = TRUE)
         
-        # Generate unique filename
-        file_ext <- tools::file_ext(input$lokasi_foto$name)
-        new_filename <- paste0("lokasi_", Sys.time() %>% as.numeric(), ".", file_ext)
-        foto_path <- file.path("www/images", new_filename)
+        # Process multiple files
+        for(i in 1:nrow(input$lokasi_foto)) {
+          file_ext <- tools::file_ext(input$lokasi_foto$name[i])
+          new_filename <- paste0("lokasi_", Sys.time() %>% as.numeric(), "_", i, ".", file_ext)
+          foto_path <- file.path("www/images", new_filename)
+          
+          # Copy uploaded file
+          file.copy(input$lokasi_foto$datapath[i], foto_path)
+          foto_url_list <- append(foto_url_list, paste0("images/", new_filename))
+        }
         
-        # Copy uploaded file
-        file.copy(input$lokasi_foto$datapath, foto_path)
-        foto_url <- paste0("images/", new_filename)
+        # Set first image as main foto_lokasi for backward compatibility
+        if(length(foto_url_list) > 0) {
+          foto_url <- foto_url_list[[1]]
+        }
       }
       
       if (is.null(session$userData$selected_lokasi_id)) {
@@ -516,6 +542,10 @@ server <- function(input, output, session) {
           kuota_mahasiswa = ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota),
           foto_lokasi = foto_url,
           timestamp = Sys.time(),
+          alamat_lokasi = ifelse(is.null(input$lokasi_alamat) || input$lokasi_alamat == "", 
+                                "Alamat belum diisi", input$lokasi_alamat),
+          map_lokasi = ifelse(is.null(input$lokasi_map) || input$lokasi_map == "", 
+                             "", input$lokasi_map),
           stringsAsFactors = FALSE
         )
         
@@ -525,8 +555,26 @@ server <- function(input, output, session) {
           selected_prodi <- c("Informatika")
         }
         new_lokasi$program_studi <- list(selected_prodi)
+        # Ensure foto_url_list is always a proper list, even if empty
+        new_lokasi$foto_lokasi_list <- list(if(length(foto_url_list) > 0) foto_url_list else list())
         
-        values$lokasi_data <- rbind(values$lokasi_data, new_lokasi)
+        # Ensure column order matches existing data structure
+        existing_cols <- names(values$lokasi_data)
+        new_lokasi <- new_lokasi[, existing_cols]
+        
+        # Robust rbind with error handling
+        tryCatch({
+          values$lokasi_data <- rbind(values$lokasi_data, new_lokasi)
+        }, error = function(e) {
+          # If rbind fails, debug and fix structure
+          cat("Column mismatch error. Existing columns:", paste(names(values$lokasi_data), collapse=", "), "\n")
+          cat("New location columns:", paste(names(new_lokasi), collapse=", "), "\n")
+          
+          # Force refresh data structure and try again
+          load_or_create_data()
+          new_lokasi <- new_lokasi[, names(values$lokasi_data)]
+          values$lokasi_data <- rbind(values$lokasi_data, new_lokasi)
+        })
         save_lokasi_data(values$lokasi_data)
         showNotification("Lokasi baru berhasil ditambahkan!", type = "message")
         
@@ -537,12 +585,17 @@ server <- function(input, output, session) {
           values$lokasi_data[row_idx, "nama_lokasi"] <- input$lokasi_nama
           values$lokasi_data[row_idx, "deskripsi_lokasi"] <- ifelse(is.null(input$lokasi_deskripsi) || input$lokasi_deskripsi == "", 
                                                                     "Tidak ada deskripsi", input$lokasi_deskripsi)
+          values$lokasi_data[row_idx, "alamat_lokasi"] <- ifelse(is.null(input$lokasi_alamat) || input$lokasi_alamat == "", 
+                                                                 "Alamat belum diisi", input$lokasi_alamat)
+          values$lokasi_data[row_idx, "map_lokasi"] <- ifelse(is.null(input$lokasi_map) || input$lokasi_map == "", 
+                                                             "", input$lokasi_map)
           values$lokasi_data[row_idx, "kategori_lokasi"] <- input$lokasi_kategori
           values$lokasi_data[row_idx, "isu_strategis"] <- ifelse(is.null(input$lokasi_isu) || input$lokasi_isu == "", 
                                                                  "Tidak ada isu strategis", input$lokasi_isu)
           # Update foto only if new file uploaded
           if (!is.null(input$lokasi_foto)) {
             values$lokasi_data[row_idx, "foto_lokasi"] <- foto_url
+            values$lokasi_data$foto_lokasi_list[[row_idx]] <- foto_url_list
           }
           values$lokasi_data[row_idx, "kuota_mahasiswa"] <- ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota)
           
@@ -562,6 +615,8 @@ server <- function(input, output, session) {
       session$userData$selected_lokasi_id <- NULL
       updateTextInput(session, "lokasi_nama", value = "")
       updateTextAreaInput(session, "lokasi_deskripsi", value = "")
+      updateTextAreaInput(session, "lokasi_alamat", value = "")
+      updateTextInput(session, "lokasi_map", value = "")
       updateSelectInput(session, "lokasi_kategori", selected = character(0))
       updateTextAreaInput(session, "lokasi_isu", value = "")
       updateSelectInput(session, "lokasi_prodi", selected = character(0))
@@ -610,6 +665,8 @@ server <- function(input, output, session) {
     session$userData$selected_lokasi_id <- NULL
     updateTextInput(session, "lokasi_nama", value = "")
     updateTextAreaInput(session, "lokasi_deskripsi", value = "")
+    updateTextAreaInput(session, "lokasi_alamat", value = "")
+    updateTextInput(session, "lokasi_map", value = "")
     updateSelectInput(session, "lokasi_kategori", selected = character(0))
     updateTextAreaInput(session, "lokasi_isu", value = "")
     updateSelectInput(session, "lokasi_prodi", selected = character(0))
@@ -667,65 +724,72 @@ server <- function(input, output, session) {
       else if (quota_status$available_quota > 0) "⚠️" 
       else "❌"
       
-      # Create enhanced card
-      div(class = "location-card", style = "margin-bottom: 20px;",
+      # Create compact vertical card
+      div(class = "location-card card-modern",
           img(src = loc$foto_lokasi, class = "location-image", alt = loc$nama_lokasi),
           
           div(class = "location-content",
-              div(class = "location-title", loc$nama_lokasi),
-              span(class = "location-category", loc$kategori_lokasi),
+              # Header section
+              div(class = "location-header",
+                  div(class = "location-title", loc$nama_lokasi),
+                  span(class = "location-category", loc$kategori_lokasi)
+              ),
               
-              div(class = "location-description", loc$deskripsi_lokasi),
+              # Body section
+              div(class = "location-body",
+                  div(class = "location-description", loc$deskripsi_lokasi),
+                  
+                  # Compact meta information
+                  div(class = "location-meta",
+                      span(class = "meta-tag", "🎯 ", 
+                           # Truncate strategic issues for compact display
+                           if(nchar(loc$isu_strategis) > 12) paste0(substr(loc$isu_strategis, 1, 12), "...") else loc$isu_strategis),
+                      span(class = "meta-tag", "📚 ", length(loc$program_studi[[1]])),
+                      span(class = "meta-tag", "👥 ", quota_status$total_quota)
+                  )
+              ),
               
-              div(class = "location-details",
-                  div(style = "margin-bottom: 10px;",
-                      strong("🎯 Isu Strategis: "), loc$isu_strategis
-                  ),
-                  div(class = "location-prodi",
-                      strong("📚 Program Studi: "), 
-                      paste(loc$program_studi[[1]], collapse = ", ")
-                  ),
-                  div(class = "location-quota",
-                      strong("👥 Kuota: "), paste(quota_status$total_quota, "mahasiswa"),
-                      br(),
-                      span(style = "font-size: 0.9em; color: #666;",
-                           "Pending: ", quota_status$pending, " | ",
-                           "Disetujui: ", quota_status$approved, " | ",
-                           "Ditolak: ", quota_status$rejected)
+              # Footer section 
+              div(class = "location-footer",
+                  # Quota indicator
+                  div(class = "quota-indicator",
+                      div(style = "display: flex; align-items: center; gap: 0.4rem;",
+                          span(quota_icon, class = quota_class, style = "font-weight: 600; font-size: 1rem;"),
+                          span(quota_text, class = quota_class, style = "font-weight: 600; font-size: 0.85rem;")
+                      ),
+                      span(paste0(quota_status$pending, "/", quota_status$approved), 
+                           style = "font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;", 
+                           title = paste("Pending:", quota_status$pending, "| Disetujui:", quota_status$approved))
                   ),
                   
-                  # Action section with quota status
-                  div(class = "quota-section", style = "margin-top: 15px;",
-                      div(
-                        span(class = quota_class, paste(quota_icon, quota_text))
-                      ),
-                      div(style = "margin-top: 10px;",
-                          if (quota_status$available_quota > 0 && registration_open) {
-                            actionButton(paste0("register_", i), "📝 Daftar Sekarang", 
-                                         class = "register-btn",
-                                         style = "width: 100%;",
-                                         onclick = paste0("
-                                             Shiny.setInputValue('selected_location_id', '", loc$id_lokasi, "', {priority: 'event'}); 
-                                             Shiny.setInputValue('show_registration_modal', Math.random(), {priority: 'event'});
-                                           "))
-                          } else {
-                            if (!registration_open) {
-                              span("⏰ Periode pendaftaran tidak aktif", 
-                                   class = "text-muted", 
-                                   style = "font-style: italic; display: block; text-align: center; padding: 10px;")
-                            } else {
-                              span("❌ Kuota Penuh", 
-                                   class = "text-danger", 
-                                   style = "font-weight: bold; display: block; text-align: center; padding: 10px;")
-                            }
-                          }
-                      )
+                  # Action button
+                  div(class = "location-action",
+                      if (quota_status$available_quota > 0 && registration_open) {
+                        actionButton(paste0("register_", i), "📝 Daftar Sekarang", 
+                                     class = "btn btn-modern btn-success-modern",
+                                     style = "width: 100%; padding: 0.6rem; font-size: 0.9rem; font-weight: 600;",
+                                     onclick = paste0("
+                                         Shiny.setInputValue('selected_location_id', '", loc$id_lokasi, "', {priority: 'event'}); 
+                                         Shiny.setInputValue('show_registration_modal', Math.random(), {priority: 'event'});
+                                       "))
+                      } else {
+                        if (!registration_open) {
+                          div(class = "btn btn-modern btn-outline-modern disabled", 
+                              style = "width: 100%; padding: 0.6rem; text-align: center; cursor: not-allowed; font-size: 0.85rem; font-weight: 500;",
+                              "⏰ Periode Tidak Aktif")
+                        } else {
+                          div(class = "btn btn-modern btn-outline-modern disabled", 
+                              style = "width: 100%; padding: 0.6rem; text-align: center; cursor: not-allowed; border-color: #dc2626; color: #dc2626; font-size: 0.85rem; font-weight: 500;",
+                              "❌ Kuota Penuh")
+                        }
+                      }
                   )
               )
           )
       )
     })
     
+    # Return cards as tagList to work with CSS .location-grid class
     return(do.call(tagList, location_cards))
   })
   
@@ -773,6 +837,161 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "show_registration_modal", suspendWhenHidden = FALSE)
   
+  # Photo modal reactive output
+  output$show_photo_modal <- reactive({
+    values$show_photo_modal
+  })
+  outputOptions(output, "show_photo_modal", suspendWhenHidden = FALSE)
+  
+  # Photo modal rendering using reactive output
+  output$photo_gallery_content <- renderUI({
+    req(values$show_photo_modal, values$selected_photo_location)
+    
+    location <- values$selected_photo_location
+    photos <- NULL
+    
+    # Extract photos with proper nested list handling
+    if("foto_lokasi_list" %in% names(location) && !is.null(location$foto_lokasi_list[[1]])) {
+      photos <- unlist(location$foto_lokasi_list[[1]])
+    }
+    
+    if(!is.null(photos) && length(photos) > 0) {
+      # Generate photo gallery with improved photo viewing
+      photo_divs <- lapply(seq_along(photos), function(i) {
+        photo <- photos[i]
+        div(style = "display: inline-block; margin: 10px; text-align: center;",
+            div(style = "position: relative; display: inline-block;",
+                tags$img(src = photo, 
+                         id = paste0("photo_", i),
+                         style = "max-width: 300px; max-height: 200px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;",
+                         onclick = paste0("
+                           var img = document.getElementById('photo_", i, "');
+                           if(img.style.transform && img.style.transform.includes('scale')) {
+                             img.style.transform = '';
+                             img.style.zIndex = '';
+                           } else {
+                             // Reset all other images first
+                             var allPhotos = document.querySelectorAll('[id^=\\\"photo_\\\"]');
+                             allPhotos.forEach(function(p) { p.style.transform = ''; p.style.zIndex = ''; });
+                             // Scale this image
+                             img.style.transform = 'scale(1.8)';
+                             img.style.zIndex = '1000';
+                             img.style.position = 'relative';
+                           }
+                           event.stopPropagation();
+                         "),
+                         onmouseover = "this.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';",
+                         onmouseout = "this.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';")),
+            div(style = "margin-top: 8px; font-size: 0.8em; color: #666;", "Klik untuk perbesar/kecilkan"),
+            div(style = "font-size: 0.7em; color: #999; margin-top: 2px;", paste0("Foto ", i, " dari ", length(photos)))
+        )
+      })
+      
+      return(div(style = "text-align: center;", photo_divs))
+    } else {
+      return(div(style = "text-align: center; padding: 40px;",
+                 p("Tidak ada foto tersedia untuk lokasi ini")))
+    }
+  })
+  
+  # Photo button click handler
+  observe({
+    # Get all input names that match photo button pattern
+    all_inputs <- reactiveValuesToList(input)
+    photo_buttons <- names(all_inputs)[grepl("^view_photos_", names(all_inputs))]
+    
+    for(button_name in photo_buttons) {
+      if(!is.null(input[[button_name]]) && input[[button_name]] > 0) {
+        # Extract location ID
+        location_id <- as.numeric(gsub("view_photos_", "", button_name))
+        
+        # Find and set the location
+        location <- values$lokasi_data[values$lokasi_data$id_lokasi == location_id, ]
+        if(nrow(location) > 0) {
+          isolate({
+            values$selected_photo_location <- location[1, ]
+            values$show_photo_modal <- TRUE
+          })
+        }
+        break  # Only handle one button click at a time
+      }
+    }
+  })
+  
+  # Update photo modal location name
+  output$photo_location_name <- renderText({
+    if(!is.null(values$selected_photo_location)) {
+      values$selected_photo_location$nama_lokasi
+    } else {
+      ""
+    }
+  })
+  
+  # Close photo modal with multiple trigger methods
+  observeEvent(input$close_photo_modal, {
+    cat("=== CLOSE PHOTO MODAL TRIGGERED (input method) ===", "\n")
+    cat("Button click count:", input$close_photo_modal, "\n")
+    
+    values$show_photo_modal <- FALSE
+    values$selected_photo_location <- NULL
+    
+    # Reset any scaled images and remove ESC listener
+    runjs("
+      console.log('Resetting photos and removing ESC listener');
+      var photos = document.querySelectorAll('[id^=\\\"photo_\\\"]');
+      photos.forEach(function(photo) {
+        photo.style.transform = '';
+        photo.style.zIndex = '';
+      });
+      // Remove ESC key listener
+      if(window.photoModalEscHandler) {
+        document.removeEventListener('keydown', window.photoModalEscHandler);
+        window.photoModalEscHandler = null;
+      }
+      console.log('Photo modal cleanup complete');
+    ")
+  }, ignoreNULL = TRUE, ignoreInit = TRUE)
+  
+  # Alternative close handler using custom input
+  observeEvent(input$close_photo_modal_custom, {
+    cat("=== CLOSE PHOTO MODAL TRIGGERED (custom method) ===", "\n")
+    
+    values$show_photo_modal <- FALSE
+    values$selected_photo_location <- NULL
+    
+    # Reset any scaled images
+    runjs("
+      console.log('Custom close triggered');
+      var photos = document.querySelectorAll('[id^=\\\"photo_\\\"]');
+      photos.forEach(function(photo) {
+        photo.style.transform = '';
+        photo.style.zIndex = '';
+      });
+      // Remove ESC key listener
+      if(window.photoModalEscHandler) {
+        document.removeEventListener('keydown', window.photoModalEscHandler);
+        window.photoModalEscHandler = null;
+      }
+    ")
+  }, ignoreNULL = TRUE, ignoreInit = TRUE)
+  
+  # Add ESC key support when photo modal opens
+  observeEvent(values$show_photo_modal, {
+    if(values$show_photo_modal) {
+      runjs("
+        // Add ESC key listener for photo modal
+        window.photoModalEscHandler = function(event) {
+          if(event.key === 'Escape') {
+            Shiny.setInputValue('close_photo_modal', Math.random());
+            console.log('ESC key pressed - closing photo modal');
+          }
+        };
+        document.addEventListener('keydown', window.photoModalEscHandler);
+        console.log('ESC key listener added for photo modal');
+      ")
+    }
+  }, ignoreInit = TRUE)
+  
   # Registration modal trigger
   observeEvent(input$show_registration_modal, {
     req(input$show_registration_modal)
@@ -813,6 +1032,7 @@ server <- function(input, output, session) {
   reset_registration_form <- function() {
     tryCatch({
       # Reset text inputs
+      updateTextInput(session, "reg_nim", value = "")
       updateTextInput(session, "reg_nama", value = "")
       updateSelectInput(session, "reg_program_studi", selected = character(0))
       updateTextInput(session, "reg_kontak", value = "")
@@ -871,13 +1091,17 @@ server <- function(input, output, session) {
       values$show_registration_modal <- FALSE
       reset_registration_form()
       
-      # Clean up modal state
+      # Clean up modal state without affecting other modals
       shinyjs::runjs("
-          $('.modal-backdrop').remove();
-          $('body').removeClass('modal-open');
-          $('body').css('padding-right', '');
-          $('body').css('overflow', '');
-        ")
+        setTimeout(function() {
+          if($('.modal.show').length === 0) {
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open');
+            $('body').css('padding-right', '');
+            $('body').css('overflow', '');
+          }
+        }, 100);
+      ")
       
       showNotification("Form pendaftaran ditutup", type = "message")
     }, error = function(e) {
@@ -887,57 +1111,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # FIXED: Check registration eligibility - allow reapplication after rejection
-  check_registration_eligibility <- function(student_name, location_name, pendaftaran_data = NULL, periode_data = NULL) {
-    # Check if registration period is open
-    if(!is_registration_open(periode_data)) {
-      return(list(eligible = FALSE, reason = "Periode pendaftaran tidak aktif"))
-    }
-    
-    if(is.null(pendaftaran_data)) {
-      if(exists("pendaftaran_data")) {
-        pendaftaran_data <- get("pendaftaran_data", envir = .GlobalEnv)
-      } else {
-        return(list(eligible = TRUE, reason = ""))
-      }
-    }
-    
-    # FIXED: Only check for active registrations (Diajukan or Disetujui)
-    # Allow students to register again if their previous registration was rejected
-    existing_active <- pendaftaran_data[
-      pendaftaran_data$nama_mahasiswa == student_name & 
-        pendaftaran_data$status_pendaftaran %in% c("Diajukan", "Disetujui"), 
-    ]
-    
-    if(nrow(existing_active) > 0) {
-      # Check if they have active registration in the SAME location
-      same_location <- existing_active[existing_active$pilihan_lokasi == location_name, ]
-      if(nrow(same_location) > 0) {
-        status <- same_location$status_pendaftaran[1]
-        if(status == "Diajukan") {
-          return(list(eligible = FALSE, reason = "Anda sudah mendaftar di lokasi ini dan sedang dalam proses review"))
-        } else if(status == "Disetujui") {
-          return(list(eligible = FALSE, reason = "Anda sudah diterima di lokasi ini"))
-        }
-      }
-      
-      # Check if they have active registration in DIFFERENT location
-      different_location <- existing_active[existing_active$pilihan_lokasi != location_name, ]
-      if(nrow(different_location) > 0) {
-        other_location <- different_location$pilihan_lokasi[1]
-        status <- different_location$status_pendaftaran[1]
-        if(status == "Diajukan") {
-          return(list(eligible = FALSE, reason = paste("Anda sudah mendaftar di lokasi '", other_location, "' dan sedang dalam proses review. Tunggu hasil review terlebih dahulu.")))
-        } else if(status == "Disetujui") {
-          return(list(eligible = FALSE, reason = paste("Anda sudah diterima di lokasi '", other_location, "'. Tidak dapat mendaftar ke lokasi lain.")))
-        }
-      }
-    }
-    
-    # FIXED: Allow registration if no active registrations found
-    # (This includes cases where previous registrations were rejected)
-    return(list(eligible = TRUE, reason = ""))
-  }
+  # REMOVED: Duplicate function - using modular version from fn/check_registration_eligibility.R
   
   # FIXED: Handle success modal closure with proper registration modal cleanup
   observeEvent(input$close_success_modal, {
@@ -1021,6 +1195,7 @@ server <- function(input, output, session) {
   reset_registration_form <- function() {
     tryCatch({
       # Reset text inputs
+      updateTextInput(session, "reg_nim", value = "")
       updateTextInput(session, "reg_nama", value = "")
       updateSelectInput(session, "reg_program_studi", selected = character(0))
       updateTextInput(session, "reg_kontak", value = "")
@@ -1329,54 +1504,9 @@ output$is_admin_logged_in <- reactive({
 })
 outputOptions(output, "is_admin_logged_in", suspendWhenHidden = FALSE)
 
-# Admin login process
-observeEvent(input$do_admin_login, {
-  tryCatch({
-    if (validate_admin(input$admin_username, input$admin_password)) {
-      values$admin_logged_in <- TRUE
-      values$login_error <- FALSE
-      
-      # Clean up login modal
-      shinyjs::runjs("
-          $('#admin_login_modal').hide();
-          $('.modal-backdrop').remove();
-          $('body').removeClass('modal-open');
-          $('body').css('padding-right', '');
-          $('body').css('overflow', '');
-        ")
-      
-      showNotification("Login berhasil! Selamat datang, Admin.", type = "message")
-    } else {
-      values$login_error <- TRUE
-    }
-  }, error = function(e) {
-    values$login_error <- TRUE
-    showNotification("Terjadi kesalahan saat login", type = "error")
-  })
-})
+# REMOVED: Duplicate admin login handler - using the earlier definition with safe cleanup
 
-# Cancel/Close login modal
-observeEvent(input$cancel_admin_login, {
-  values$login_error <- FALSE
-  shinyjs::runjs("
-      $('#admin_login_modal').hide();
-      $('.modal-backdrop').remove();
-      $('body').removeClass('modal-open');
-      $('body').css('padding-right', '');
-      $('body').css('overflow', '');
-    ")
-})
-
-observeEvent(input$close_admin_login, {
-  values$login_error <- FALSE
-  shinyjs::runjs("
-      $('#admin_login_modal').hide();
-      $('.modal-backdrop').remove();
-      $('body').removeClass('modal-open');
-      $('body').css('padding-right', '');
-      $('body').css('overflow', '');
-    ")
-})
+# REMOVED: Duplicate login modal handlers - using earlier definitions with safe cleanup
 
 # Admin logout
 observeEvent(input$admin_logout_btn, {
@@ -1863,6 +1993,8 @@ observeEvent(input$save_lokasi, {
     session$userData$selected_lokasi_id <- NULL
     updateTextInput(session, "lokasi_nama", value = "")
     updateTextAreaInput(session, "lokasi_deskripsi", value = "")
+    updateTextAreaInput(session, "lokasi_alamat", value = "")
+    updateTextInput(session, "lokasi_map", value = "")
     updateSelectInput(session, "lokasi_kategori", selected = character(0))
     updateTextAreaInput(session, "lokasi_isu", value = "")
     updateSelectInput(session, "lokasi_prodi", selected = character(0))
@@ -1979,6 +2111,28 @@ output$locations_grid <- renderUI({
             div(class = "location-description", loc$deskripsi_lokasi),
             
             div(class = "location-details",
+                # Address section
+                div(style = "margin-bottom: 10px;",
+                    strong("📍 Alamat: "), 
+                    ifelse("alamat_lokasi" %in% names(loc) && !is.na(loc$alamat_lokasi) && loc$alamat_lokasi != "", 
+                           loc$alamat_lokasi, "Alamat belum tersedia")
+                ),
+                # Map and Photos buttons section
+                div(style = "margin-bottom: 10px; display: flex; gap: 8px; flex-wrap: wrap;",
+                    # Map button
+                    if("map_lokasi" %in% names(loc) && !is.na(loc$map_lokasi) && loc$map_lokasi != "") {
+                      tags$a(href = loc$map_lokasi, target = "_blank",
+                             class = "btn btn-sm btn-outline-primary",
+                             style = "text-decoration: none; font-size: 0.8em; padding: 4px 8px;",
+                             "🗺️ Lihat di Maps")
+                    } else NULL,
+                    # Photos button
+                    if("foto_lokasi_list" %in% names(loc) && !is.null(loc$foto_lokasi_list[[1]]) && length(loc$foto_lokasi_list[[1]]) > 0) {
+                      actionButton(paste0("view_photos_", loc$id_lokasi), "📸 Lihat Foto",
+                                   class = "btn btn-sm btn-outline-info",
+                                   style = "font-size: 0.8em; padding: 4px 8px;")
+                    } else NULL
+                ),
                 div(style = "margin-bottom: 10px;",
                     strong("🎯 Isu Strategis: "), loc$isu_strategis
                 ),
@@ -2084,6 +2238,7 @@ output$location_strategic_issues <- renderText({
 
 # Reset registration form function
 reset_registration_form <- function() {
+  updateTextInput(session, "reg_nim", value = "")
   updateTextInput(session, "reg_nama", value = "")
   updateSelectInput(session, "reg_program_studi", selected = character(0))
   updateTextInput(session, "reg_kontak", value = "")
@@ -2115,20 +2270,27 @@ observeEvent(input$close_registration_modal, {
   values$show_registration_modal <- FALSE
   reset_registration_form()
   
+  # FIXED: Clean modal close without affecting other modals
   shinyjs::runjs("
+    // Only clean up if no other modals are open
+    setTimeout(function() {
+      if($('.modal.show').length === 0) {
         $('.modal-backdrop').remove();
         $('body').removeClass('modal-open');
         $('body').css('padding-right', '');
-      ")
+        $('body').css('overflow', '');
+      }
+    }, 100);
+  ")
 })
 
 # Registration submission
 observeEvent(input$submit_registration, {
-  req(input$reg_nama, input$reg_program_studi, input$reg_kontak)
+  req(input$reg_nim, input$reg_nama, input$reg_program_studi, input$reg_kontak)
   
   tryCatch({
     # Validate registration eligibility
-    eligibility <- check_registration_eligibility(input$reg_nama, values$selected_location$nama_lokasi, 
+    eligibility <- check_registration_eligibility(input$reg_nim, values$selected_location$nama_lokasi, 
                                                   values$pendaftaran_data, values$periode_data)
     
     if (!eligibility$eligible) {
@@ -2220,6 +2382,7 @@ observeEvent(input$submit_registration, {
     new_registration <- data.frame(
       id_pendaftaran = as.integer(new_id),
       timestamp = Sys.time(),
+      nim_mahasiswa = as.character(input$reg_nim),
       nama_mahasiswa = as.character(input$reg_nama),
       program_studi = as.character(input$reg_program_studi),
       kontak = as.character(input$reg_kontak),
@@ -2235,7 +2398,7 @@ observeEvent(input$submit_registration, {
     )
     
     # Ensure column order matches exactly
-    required_cols <- c("id_pendaftaran", "timestamp", "nama_mahasiswa", "program_studi", 
+    required_cols <- c("id_pendaftaran", "timestamp", "nim_mahasiswa", "nama_mahasiswa", "program_studi", 
                        "kontak", "pilihan_lokasi", "letter_of_interest_path",
                        "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
                        "form_komitmen_mahasiswa_path", "transkrip_nilai_path", 
@@ -2274,13 +2437,17 @@ observeEvent(input$submit_registration, {
     values$show_registration_modal <- FALSE
     reset_registration_form()
     
-    # FIXED: Clean up registration modal immediately (specific, not affecting other modals)
+    # FIXED: Clean up registration modal without affecting other modals
     shinyjs::runjs("
-      // Only clean up registration modal artifacts, not all modals
-      $('.modal-backdrop').remove();
-      $('body').removeClass('modal-open');
-      $('body').css('padding-right', '');
-      $('body').css('overflow', '');
+      // Clean up only if no other modals are open
+      setTimeout(function() {
+        if($('.modal.show').length === 0) {
+          $('.modal-backdrop').remove();
+          $('body').removeClass('modal-open');
+          $('body').css('padding-right', '');
+          $('body').css('overflow', '');
+        }
+      }, 100);
     ")
     
     # FIXED: Small delay before showing success modal to ensure cleanup
@@ -2374,38 +2541,49 @@ observe({
                     choices = c("Semua Lokasi" = "", current_lokasis))
 })
 
-# Search registration reactive
+# Search registration reactive - PRODUCTION VERSION
 search_results <- reactive({
+  # Only execute search if button was clicked
   if(input$search_registration == 0) {
     return(data.frame())
   }
   
   isolate({
-    has_criteria <- (!is.null(input$search_nama) && input$search_nama != "") ||
+    # Check if any search criteria is provided
+    has_criteria <- (!is.null(input$search_nama) && nchar(trimws(input$search_nama)) > 0) ||
+      (!is.null(input$search_nim) && nchar(trimws(input$search_nim)) > 0) ||
       (!is.null(input$search_tanggal) && !is.na(input$search_tanggal)) ||
       (!is.null(input$search_lokasi) && input$search_lokasi != "") ||
       (!is.null(input$search_status) && input$search_status != "")
     
     if(!has_criteria) {
+      showNotification("Masukkan minimal satu kriteria pencarian", type = "warning")
       return(data.frame())
     }
     
-    results <- search_registrations(
-      nama = input$search_nama,
-      tanggal = input$search_tanggal,
-      lokasi = input$search_lokasi,
-      status = input$search_status,
-      pendaftaran_data = values$pendaftaran_data
-    )
-    
-    return(results)
+    # Perform search
+    tryCatch({
+      results <- search_registrations(
+        nama = if(!is.null(input$search_nama) && nchar(trimws(input$search_nama)) > 0) input$search_nama else NULL,
+        nim = if(!is.null(input$search_nim) && nchar(trimws(input$search_nim)) > 0) input$search_nim else NULL,
+        tanggal = input$search_tanggal,
+        lokasi = if(!is.null(input$search_lokasi) && input$search_lokasi != "") input$search_lokasi else NULL,
+        status = if(!is.null(input$search_status) && input$search_status != "") input$search_status else NULL,
+        pendaftaran_data = values$pendaftaran_data
+      )
+      
+      return(results)
+      
+    }, error = function(e) {
+      showNotification(paste("Error dalam pencarian:", e$message), type = "error")
+      return(data.frame())
+    })
   })
 })
 
-# Display search results for students
+# Display search results for students - SIMPLIFIED APPROACH
 output$registration_results <- DT::renderDataTable({
-  results <- search_results()
-  
+  # Simple approach: if search button not clicked, show help
   if(input$search_registration == 0) {
     return(data.frame(
       "🔍" = "Gunakan form pencarian di sebelah kiri untuk mencari status pendaftaran Anda",
@@ -2414,84 +2592,37 @@ output$registration_results <- DT::renderDataTable({
     ))
   }
   
-  if (nrow(results) == 0) {
+  # Get search results
+  results <- search_results()
+  
+  # If no results, show message
+  if(is.null(results) || nrow(results) == 0) {
     return(data.frame(
       "📝" = "Tidak ada data ditemukan dengan kriteria pencarian yang diberikan",
       "💡" = "Coba ubah kriteria pencarian atau periksa ejaan nama",
-      "🔄" = "Pastikan nama sesuai dengan yang didaftarkan",
       check.names = FALSE
     ))
   }
   
-  display_data <- results[, c("id_pendaftaran", "nama_mahasiswa", "program_studi", 
-                              "pilihan_lokasi", "status_pendaftaran", "timestamp")]
-  display_data$timestamp <- format(display_data$timestamp, "%d-%m-%Y %H:%M")
+  # We have results - create simple table
+  simple_data <- data.frame(
+    ID = results$id_pendaftaran,
+    NIM = ifelse(is.na(results$nim_mahasiswa) | results$nim_mahasiswa == "", "(kosong)", results$nim_mahasiswa),
+    Nama = results$nama_mahasiswa,
+    Prodi = results$program_studi,
+    Lokasi = results$pilihan_lokasi,
+    Status = results$status_pendaftaran,
+    Tanggal = format(results$timestamp, "%d-%m-%Y %H:%M")
+  )
   
-  display_data$status_detail <- sapply(1:nrow(display_data), function(i) {
-    status <- display_data$status_pendaftaran[i]
-    reg_id <- display_data$id_pendaftaran[i]
-    full_reg <- results[results$id_pendaftaran == reg_id, ]
-    
-    status_text <- switch(status,
-                          "Diajukan" = "⏳ Diajukan - Sedang diproses admin",
-                          "Disetujui" = "✅ Disetujui - Pendaftaran diterima", 
-                          "Ditolak" = {
-                            if(!is.na(full_reg$alasan_penolakan) && full_reg$alasan_penolakan != "") {
-                              paste("❌ Ditolak -", substr(full_reg$alasan_penolakan, 1, 100))
-                            } else {
-                              "❌ Ditolak - Hubungi admin untuk detail"
-                            }
-                          },
-                          paste("❓", status)
-    )
-    
-    return(status_text)
-  })
+  return(DT::datatable(simple_data, 
+                       options = list(pageLength = 10, searching = FALSE),
+                       rownames = FALSE))
   
-  display_data$kontak_info <- sapply(1:nrow(display_data), function(i) {
-    reg_id <- display_data$id_pendaftaran[i]
-    full_reg <- results[results$id_pendaftaran == reg_id, ]
-    
-    if(!is.na(full_reg$kontak) && full_reg$kontak != "") {
-      return(full_reg$kontak)
-    } else {
-      return("-")
-    }
-  })
+  # OLD COMPLEX CODE REMOVED - using simple approach above
   
-  final_data <- display_data[, c("id_pendaftaran", "nama_mahasiswa", "program_studi",
-                                 "pilihan_lokasi", "status_detail", "kontak_info", "timestamp")]
-  
-  DT::datatable(final_data, 
-                options = list(
-                  pageLength = 10, 
-                  searching = FALSE,
-                  dom = 'rtip',
-                  scrollX = TRUE,
-                  language = list(
-                    emptyTable = "Tidak ada data pendaftaran yang ditemukan",
-                    info = "Menampilkan _START_ sampai _END_ dari _TOTAL_ pendaftaran",
-                    infoEmpty = "Tidak ada data untuk ditampilkan",
-                    paginate = list(
-                      previous = "Sebelumnya",
-                      `next` = "Selanjutnya"
-                    )
-                  )
-                ),
-                colnames = c("🆔 ID", "👤 Nama", "🎓 Prodi", "📍 Lokasi", "📊 Status & Detail", "📱 Kontak", "📅 Tanggal"),
-                rownames = FALSE, 
-                escape = FALSE) %>%
-    DT::formatStyle("status_detail",
-                    backgroundColor = DT::styleEqual(
-                      c("⏳ Diajukan - Sedang diproses admin", "✅ Disetujui - Pendaftaran diterima"),
-                      c("#fff3cd", "#d4edda")
-                    ),
-                    fontWeight = "bold"
-    ) %>%
-    DT::formatStyle("id_pendaftaran",
-                    backgroundColor = "#e3f2fd",
-                    fontWeight = "bold"
-    )
+  # REMOVED: This code block was moved above in the simplified version
+  # REMOVED: All complex code replaced with simple version above
 })
 
 # ================================
@@ -2524,6 +2655,66 @@ admin_filtered_registrations <- reactive({
   return(data)
 })
 
+# Document completion statistics for admin
+output$document_completion_stats <- renderUI({
+  registrations <- admin_filtered_registrations()
+  
+  if(nrow(registrations) == 0) {
+    return(div())
+  }
+  
+  docs <- c("letter_of_interest_path", "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
+            "form_komitmen_mahasiswa_path", "transkrip_nilai_path")
+  
+  # Calculate stats
+  complete_docs <- sapply(1:nrow(registrations), function(i) {
+    sum(!is.na(registrations[i, docs]) & registrations[i, docs] != "", na.rm = TRUE)
+  })
+  
+  total_registrations <- nrow(registrations)
+  complete_registrations <- sum(complete_docs == 5)
+  partial_registrations <- sum(complete_docs > 0 & complete_docs < 5)
+  empty_registrations <- sum(complete_docs == 0)
+  
+  # Status-based stats
+  pending_count <- sum(registrations$status_pendaftaran == "Diajukan", na.rm = TRUE)
+  approved_count <- sum(registrations$status_pendaftaran == "Disetujui", na.rm = TRUE)
+  rejected_count <- sum(registrations$status_pendaftaran == "Ditolak", na.rm = TRUE)
+  
+  div(class = "row", style = "margin-bottom: 15px;",
+      # Document completion stats
+      div(class = "col-md-8",
+          div(class = "alert alert-info", style = "margin-bottom: 10px;",
+              h5("📄 Statistik Kelengkapan Dokumen", style = "margin-top: 0; color: #0c5460;"),
+              div(class = "row",
+                  div(class = "col-md-4 text-center",
+                      h4(complete_registrations, style = "color: #28a745; margin-bottom: 5px;"),
+                      tags$small("✓ Lengkap", style = "color: #28a745; font-weight: bold;")
+                  ),
+                  div(class = "col-md-4 text-center",
+                      h4(partial_registrations, style = "color: #ffc107; margin-bottom: 5px;"),
+                      tags$small("⚠ Parsial", style = "color: #ffc107; font-weight: bold;")
+                  ),
+                  div(class = "col-md-4 text-center",
+                      h4(empty_registrations, style = "color: #dc3545; margin-bottom: 5px;"),
+                      tags$small("❌ Kosong", style = "color: #dc3545; font-weight: bold;")
+                  )
+              )
+          )
+      ),
+      # Status stats
+      div(class = "col-md-4",
+          div(class = "alert alert-warning", style = "margin-bottom: 10px;",
+              h5("📊 Status Pendaftaran", style = "margin-top: 0; color: #856404;"),
+              p(strong(pending_count), " Menunggu | ", 
+                strong(approved_count), " Disetujui | ", 
+                strong(rejected_count), " Ditolak",
+                style = "margin-bottom: 0; text-align: center;")
+          )
+      )
+  )
+})
+
 # Display registration table for admin
 output$admin_registrations_table <- DT::renderDataTable({
   registrations <- admin_filtered_registrations()
@@ -2537,8 +2728,26 @@ output$admin_registrations_table <- DT::renderDataTable({
   display_data <- registrations
   display_data$timestamp <- format(display_data$timestamp, "%d-%m-%Y %H:%M")
   
-  table_data <- display_data[, c("id_pendaftaran", "timestamp", "nama_mahasiswa", 
-                                 "program_studi", "pilihan_lokasi", "kontak", "status_pendaftaran")]
+  # Add document status column
+  display_data$dokumen_status <- sapply(1:nrow(display_data), function(i) {
+    row <- display_data[i, ]
+    docs <- c("letter_of_interest_path", "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
+              "form_komitmen_mahasiswa_path", "transkrip_nilai_path")
+    
+    completed <- sum(!is.na(row[docs]) & row[docs] != "", na.rm = TRUE)
+    total <- length(docs)
+    
+    if(completed == total) {
+      return(paste0("<span style='color: #28a745; font-weight: bold;'>✓ Lengkap (5/5)</span>"))
+    } else if(completed > 0) {
+      return(paste0("<span style='color: #ffc107; font-weight: bold;'>⚠ Parsial (", completed, "/5)</span>"))
+    } else {
+      return(paste0("<span style='color: #dc3545; font-weight: bold;'>❌ Kosong (0/5)</span>"))
+    }
+  })
+  
+  table_data <- display_data[, c("id_pendaftaran", "timestamp", "nim_mahasiswa", "nama_mahasiswa", 
+                                 "program_studi", "pilihan_lokasi", "dokumen_status", "status_pendaftaran")]
   
   table_data$aksi <- sapply(1:nrow(table_data), function(i) {
     reg_id <- display_data$id_pendaftaran[i]
@@ -2556,11 +2765,15 @@ output$admin_registrations_table <- DT::renderDataTable({
   })
   
   DT::datatable(table_data,
+                escape = FALSE,  # Enable HTML rendering
                 options = list(
                   pageLength = 10, 
                   searching = TRUE,
                   scrollX = TRUE,
-                  columnDefs = list(list(orderable = FALSE, targets = ncol(table_data) - 1)),
+                  columnDefs = list(
+                    list(orderable = FALSE, targets = ncol(table_data) - 1),  # Actions column
+                    list(orderable = FALSE, targets = ncol(table_data) - 2)   # Document status column
+                  ),
                   language = list(
                     emptyTable = "Tidak ada data pendaftar",
                     info = "Menampilkan _START_ sampai _END_ dari _TOTAL_ pendaftar",
@@ -2568,9 +2781,8 @@ output$admin_registrations_table <- DT::renderDataTable({
                     lengthMenu = "Tampilkan _MENU_ data per halaman"
                   )
                 ),
-                colnames = c("ID", "📅 Tanggal", "👤 Nama", "🎓 Prodi", "📍 Lokasi", "📱 Kontak", "📊 Status", "🔧 Aksi"),
+                colnames = c("ID", "📅 Tanggal", "🆔 NIM", "👤 Nama", "🎓 Prodi", "📍 Lokasi", "📄 Dokumen", "📊 Status", "🔧 Aksi"),
                 selection = "none",
-                escape = FALSE,
                 rownames = FALSE) %>%
     DT::formatStyle("status_pendaftaran",
                     backgroundColor = DT::styleEqual(
@@ -2613,6 +2825,33 @@ observeEvent(input$view_registration_detail, {
         }
       }
       
+      # Helper function to create document action buttons
+      create_doc_buttons <- function(path_field, doc_name) {
+        if(safe_field(path_field) != "Tidak ada data") {
+          tagList(
+            div(style = "margin-bottom: 5px;",
+                span("✓ File tersedia", style = "color: #28a745; font-size: 0.85em; font-weight: bold;")
+            ),
+            div(
+              tags$a(href = safe_field(path_field), target = "_blank", 
+                     class = "btn btn-sm btn-primary", 
+                     style = "margin-right: 5px;",
+                     "👁️ Lihat"),
+              tags$a(href = safe_field(path_field), download = "",
+                     class = "btn btn-sm btn-success", 
+                     "💾 Download")
+            )
+          )
+        } else {
+          div(
+            div(style = "margin-bottom: 5px;",
+                span("❌ File tidak tersedia", style = "color: #dc3545; font-size: 0.85em; font-weight: bold;")
+            ),
+            span(paste0("Mahasiswa belum mengupload ", doc_name), style = "color: #6c757d; font-size: 0.8em;")
+          )
+        }
+      }
+      
       Sys.sleep(0.1)
       
       showModal(modalDialog(
@@ -2625,6 +2864,7 @@ observeEvent(input$view_registration_detail, {
               h4("👤 Informasi Pribadi", style = "color: #495057; margin-bottom: 15px;"),
               fluidRow(
                 column(6,
+                       p(strong("NIM: "), safe_field("nim_mahasiswa")),
                        p(strong("Nama: "), safe_field("nama_mahasiswa")),
                        p(strong("Program Studi: "), safe_field("program_studi")),
                        p(strong("Kontak: "), safe_field("kontak"))
@@ -2636,7 +2876,7 @@ observeEvent(input$view_registration_detail, {
                          } else { 
                            "Tidak ada data" 
                          }),
-                       p(strong("Usulan Dosen: "), safe_field("usulan_dosen_pembimbing")),
+                       p(strong("Pilihan Lokasi: "), safe_field("pilihan_lokasi")),
                        p(strong("Status: "), 
                          span(safe_field("status_pendaftaran"), 
                               style = paste0("padding: 4px 8px; border-radius: 4px; color: white; background-color: ", 
@@ -2650,13 +2890,99 @@ observeEvent(input$view_registration_detail, {
             
             wellPanel(
               h4("📍 Informasi Lokasi", style = "color: #1976d2; margin-bottom: 15px;"),
-              p(strong("Pilihan Lokasi: "), safe_field("pilihan_lokasi"))
+              div(style = "background: #e3f2fd; padding: 12px; border-radius: 8px;",
+                  p(strong("Lokasi Pilihan: "), 
+                    span(safe_field("pilihan_lokasi"), style = "font-size: 1.1em; color: #1976d2; font-weight: bold;"))
+              )
             ),
             
             wellPanel(
-              h4("💭 Alasan Pemilihan Lokasi", style = "color: #856404; margin-bottom: 15px;"),
-              div(style = "background: #f8f9fa; padding: 15px; border-radius: 8px; max-height: 200px; overflow-y: auto;",
-                  p(safe_field("alasan_pemilihan", "Tidak ada essay"), style = "margin: 0; line-height: 1.5;")
+              h4("📄 Dokumen Pendaftaran", style = "color: #6f42c1; margin-bottom: 15px;"),
+              div(style = "background: #f8f9fa; padding: 15px; border-radius: 8px;",
+                  # Document summary
+                  div(style = "text-align: center; margin-bottom: 15px; padding: 10px; background: white; border-radius: 8px;",
+                      h5("Status Kelengkapan Dokumen", style = "margin-bottom: 10px; color: #495057;"),
+                      {
+                        docs <- c("letter_of_interest_path", "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
+                                  "form_komitmen_mahasiswa_path", "transkrip_nilai_path")
+                        completed <- sum(!is.na(reg[docs]) & reg[docs] != "", na.rm = TRUE)
+                        total <- length(docs)
+                        percentage <- round((completed/total) * 100)
+                        
+                        if(completed == total) {
+                          div(style = "color: #28a745; font-size: 1.2em;",
+                              icon("check-circle"), " Semua dokumen lengkap (", completed, "/", total, " - ", percentage, "%)")
+                        } else {
+                          div(style = paste0("color: ", if(completed > 0) "#ffc107" else "#dc3545", "; font-size: 1.1em;"),
+                              icon(if(completed > 0) "exclamation-triangle" else "times-circle"), 
+                              " Dokumen ", if(completed > 0) "belum lengkap" else "kosong", 
+                              " (", completed, "/", total, " - ", percentage, "%)")
+                        }
+                      }
+                  ),
+                  fluidRow(
+                    column(12,
+                           # Letter of Interest
+                           div(style = "margin-bottom: 12px; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #007bff;",
+                               div(style = "display: flex; justify-content: space-between; align-items: center;",
+                                   div(
+                                     strong("📝 Letter of Interest:"),
+                                     br(),
+                                     span(style = "font-size: 0.9em; color: #666;", "Surat minat mengikuti program")
+                                   ),
+                                   create_doc_buttons("letter_of_interest_path", "Letter of Interest")
+                               )
+                           ),
+                           
+                           # CV Mahasiswa
+                           div(style = "margin-bottom: 12px; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #28a745;",
+                               div(style = "display: flex; justify-content: space-between; align-items: center;",
+                                   div(
+                                     strong("👤 CV Mahasiswa:"),
+                                     br(),
+                                     span(style = "font-size: 0.9em; color: #666;", "Riwayat hidup mahasiswa")
+                                   ),
+                                   create_doc_buttons("cv_mahasiswa_path", "CV Mahasiswa")
+                               )
+                           ),
+                           
+                           # Form Rekomendasi
+                           div(style = "margin-bottom: 12px; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #ffc107;",
+                               div(style = "display: flex; justify-content: space-between; align-items: center;",
+                                   div(
+                                     strong("📋 Form Rekomendasi:"),
+                                     br(),
+                                     span(style = "font-size: 0.9em; color: #666;", "Rekomendasi mengikuti Labsos")
+                                   ),
+                                   create_doc_buttons("form_rekomendasi_prodi_path", "Form Rekomendasi")
+                               )
+                           ),
+                           
+                           # Form Komitmen
+                           div(style = "margin-bottom: 12px; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #e83e8c;",
+                               div(style = "display: flex; justify-content: space-between; align-items: center;",
+                                   div(
+                                     strong("📜 Surat Komitmen:"),
+                                     br(),
+                                     span(style = "font-size: 0.9em; color: #666;", "Komitmen mahasiswa mengikuti Labsos")
+                                   ),
+                                   create_doc_buttons("form_komitmen_mahasiswa_path", "Surat Komitmen")
+                               )
+                           ),
+                           
+                           # Transkrip Nilai
+                           div(style = "margin-bottom: 0; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid #17a2b8;",
+                               div(style = "display: flex; justify-content: space-between; align-items: center;",
+                                   div(
+                                     strong("🎓 Transkrip Nilai:"),
+                                     br(),
+                                     span(style = "font-size: 0.9em; color: #666;", "Transkrip nilai akademik")
+                                   ),
+                                   create_doc_buttons("transkrip_nilai_path", "Transkrip Nilai")
+                               )
+                           )
+                    )
+                  )
               )
             ),
             
