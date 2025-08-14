@@ -92,14 +92,13 @@ server <- function(input, output, session) {
     values$selected_location <- NULL
     values$show_registration_modal <- FALSE
     
-    # Complete modal cleanup
+    # FIXED: Specific modal cleanup - only admin login modal
     shinyjs::runjs("
-      $('.modal').modal('hide');
+      $('#admin_login_modal').modal('hide');
       $('.modal-backdrop').remove();
       $('body').removeClass('modal-open');
       $('body').css('padding-right', '');
       $('body').css('overflow', '');
-      $('#admin_login_modal').hide();
     ")
     
     # Redirect to homepage
@@ -958,8 +957,8 @@ server <- function(input, output, session) {
       # Step 4: FIXED - Complete modal cleanup with registration modal removal
       shinyjs::runjs("
           // Remove all modals and backdrops
-          $('.modal').modal('hide');
-          $('.modal').remove();
+          // FIXED: Removed global modal hide to preserve admin login modal
+          // FIXED: Removed global modal remove to preserve admin login modal
           $('.modal-backdrop').remove();
           
           // Reset body state
@@ -969,23 +968,12 @@ server <- function(input, output, session) {
           $('body').css('overflow-x', '');
           $('body').css('overflow-y', '');
           
-          // Force remove any remaining modal artifacts
-          $('[id*=\"modal\"]').remove();
-          $('.fade.show').remove();
-          
-          // Reset any modal-related classes
-          $('*').removeClass('modal-backdrop');
-          
-          // Ensure page is scrollable again
-          $(document).off('touchmove.modal');
-          
-          // FIXED: Specifically target registration modal cleanup
-          $('#registration_modal').modal('hide');
-          $('#registration_modal').remove();
+          // FIXED: Safe cleanup - preserve admin login modal
+          // Only remove modal backdrops, not modal elements themselves
           
           // Clear any lingering modal states
           setTimeout(function() {
-            $('.modal').remove();
+            // FIXED: Removed global modal remove to preserve admin login modal
             $('.modal-backdrop').remove();
             $('body').removeClass('modal-open');
             $('body').css('padding-right', '');
@@ -1012,8 +1000,8 @@ server <- function(input, output, session) {
       
       # Emergency modal cleanup
       shinyjs::runjs("
-          $('.modal').modal('hide');
-          $('.modal').remove();
+          // FIXED: Removed global modal hide to preserve admin login modal
+          // FIXED: Removed global modal remove to preserve admin login modal
           $('.modal-backdrop').remove();
           $('body').removeClass('modal-open');
           $('body').css('padding-right', '');
@@ -1021,7 +1009,7 @@ server <- function(input, output, session) {
           
           // Force cleanup
           setTimeout(function() {
-            $('.modal').remove();
+            // FIXED: Removed global modal remove to preserve admin login modal
             $('.modal-backdrop').remove();
             $('body').removeClass('modal-open');
           }, 100);
@@ -1410,7 +1398,7 @@ observeEvent(input$admin_logout_btn, {
   
   # Complete modal cleanup
   shinyjs::runjs("
-      $('.modal').modal('hide');
+      // FIXED: Removed global modal hide to preserve admin login modal
       $('.modal-backdrop').remove();
       $('body').removeClass('modal-open');
       $('body').css('padding-right', '');
@@ -2257,10 +2245,9 @@ observeEvent(input$submit_registration, {
     values$show_registration_modal <- FALSE
     reset_registration_form()
     
-    # FIXED: Clean up registration modal immediately
+    # FIXED: Clean up registration modal immediately (specific, not affecting other modals)
     shinyjs::runjs("
-      // Close the registration modal immediately
-      $('.modal').modal('hide');
+      // Only clean up registration modal artifacts, not all modals
       $('.modal-backdrop').remove();
       $('body').removeClass('modal-open');
       $('body').css('padding-right', '');
@@ -2558,7 +2545,7 @@ observeEvent(input$view_registration_detail, {
   
   tryCatch({
     shinyjs::runjs("
-          $('.modal').modal('hide');
+          // FIXED: Removed global modal hide to preserve admin login modal
           $('.modal-backdrop').remove();
           $('body').removeClass('modal-open');
           $('body').css('padding-right', '');
@@ -2673,7 +2660,7 @@ observeEvent(input$approve_registration_id, {
   
   tryCatch({
     shinyjs::runjs("
-          $('.modal').modal('hide');
+          // FIXED: Removed global modal hide to preserve admin login modal
           $('.modal-backdrop').remove();
           $('body').removeClass('modal-open');
           $('body').css('padding-right', '');
@@ -2730,7 +2717,7 @@ observeEvent(input$reject_registration_id, {
   req(input$reject_registration_id)
   
   shinyjs::runjs("
-        $('.modal').modal('hide');
+        // FIXED: Removed global modal hide to preserve admin login modal
         $('.modal-backdrop').remove();
         $('body').removeClass('modal-open');
         $('body').css('padding-right', '');
