@@ -92,6 +92,15 @@ load_or_create_data <- function() {
                        "form_komitmen_mahasiswa_path", "transkrip_nilai_path", 
                        "status_pendaftaran", "alasan_penolakan")
     
+    # MIGRATION: Remove old columns that no longer exist
+    old_cols_to_remove <- c("alasan_pemilihan", "usulan_dosen_pembimbing")
+    for(old_col in old_cols_to_remove) {
+      if(old_col %in% names(pendaftaran_data)) {
+        pendaftaran_data[[old_col]] <- NULL
+      }
+    }
+    
+    # Add new required columns if missing
     for(col in required_cols) {
       if(!col %in% names(pendaftaran_data)) {
         if(col == "timestamp") {
@@ -103,6 +112,9 @@ load_or_create_data <- function() {
         }
       }
     }
+    
+    # Ensure columns are in the correct order
+    pendaftaran_data <- pendaftaran_data[, required_cols, drop = FALSE]
     pendaftaran_data <<- pendaftaran_data
   } else {
     pendaftaran_data <<- data.frame(

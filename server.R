@@ -2216,27 +2216,48 @@ observeEvent(input$submit_registration, {
     # Generate proper registration ID
     new_id <- get_next_registration_id(values$pendaftaran_data)
     
-    # Create new registration entry
+    # Create new registration entry with exact column matching
     new_registration <- data.frame(
-      id_pendaftaran = new_id,
+      id_pendaftaran = as.integer(new_id),
       timestamp = Sys.time(),
-      nama_mahasiswa = input$reg_nama,
-      program_studi = input$reg_program_studi,
-      kontak = input$reg_kontak,
-      pilihan_lokasi = values$selected_location$nama_lokasi,
-      letter_of_interest_path = ifelse(is.null(doc_paths[["reg_letter_of_interest"]]), "", doc_paths[["reg_letter_of_interest"]]),
-      cv_mahasiswa_path = ifelse(is.null(doc_paths[["reg_cv_mahasiswa"]]), "", doc_paths[["reg_cv_mahasiswa"]]),
-      form_rekomendasi_prodi_path = ifelse(is.null(doc_paths[["reg_form_rekomendasi"]]), "", doc_paths[["reg_form_rekomendasi"]]),
-      form_komitmen_mahasiswa_path = ifelse(is.null(doc_paths[["reg_form_komitmen"]]), "", doc_paths[["reg_form_komitmen"]]),
-      transkrip_nilai_path = ifelse(is.null(doc_paths[["reg_transkrip_nilai"]]), "", doc_paths[["reg_transkrip_nilai"]]),
-      status_pendaftaran = "Diajukan",
-      alasan_penolakan = NA,
+      nama_mahasiswa = as.character(input$reg_nama),
+      program_studi = as.character(input$reg_program_studi),
+      kontak = as.character(input$reg_kontak),
+      pilihan_lokasi = as.character(values$selected_location$nama_lokasi),
+      letter_of_interest_path = as.character(ifelse(is.null(doc_paths[["reg_letter_of_interest"]]), "", doc_paths[["reg_letter_of_interest"]])),
+      cv_mahasiswa_path = as.character(ifelse(is.null(doc_paths[["reg_cv_mahasiswa"]]), "", doc_paths[["reg_cv_mahasiswa"]])),
+      form_rekomendasi_prodi_path = as.character(ifelse(is.null(doc_paths[["reg_form_rekomendasi"]]), "", doc_paths[["reg_form_rekomendasi"]])),
+      form_komitmen_mahasiswa_path = as.character(ifelse(is.null(doc_paths[["reg_form_komitmen"]]), "", doc_paths[["reg_form_komitmen"]])),
+      transkrip_nilai_path = as.character(ifelse(is.null(doc_paths[["reg_transkrip_nilai"]]), "", doc_paths[["reg_transkrip_nilai"]])),
+      status_pendaftaran = as.character("Diajukan"),
+      alasan_penolakan = as.character(""),
       stringsAsFactors = FALSE
     )
     
-    # Add to data and save
-    values$pendaftaran_data <- rbind(values$pendaftaran_data, new_registration)
-    values$last_registration_id <- new_id
+    # Ensure column order matches exactly
+    required_cols <- c("id_pendaftaran", "timestamp", "nama_mahasiswa", "program_studi", 
+                       "kontak", "pilihan_lokasi", "letter_of_interest_path",
+                       "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
+                       "form_komitmen_mahasiswa_path", "transkrip_nilai_path", 
+                       "status_pendaftaran", "alasan_penolakan")
+    new_registration <- new_registration[, required_cols, drop = FALSE]
+    
+    # Add to data and save with error handling
+    tryCatch({
+      # Ensure both data frames have the same structure before rbind
+      if(ncol(values$pendaftaran_data) != ncol(new_registration)) {
+        # Force refresh of data structure
+        load_or_create_data()
+      }
+      values$pendaftaran_data <- rbind(values$pendaftaran_data, new_registration)
+      values$last_registration_id <- new_id
+    }, error = function(e) {
+      # If rbind fails, create a fresh data frame
+      showNotification(paste("Data structure mismatch, refreshing..."), type = "warning")
+      load_or_create_data()
+      values$pendaftaran_data <- rbind(values$pendaftaran_data, new_registration)
+      values$last_registration_id <- new_id
+    })
     
     # Save to RDS file
     tryCatch({
@@ -2295,11 +2316,29 @@ observeEvent(input$submit_registration, {
     values$selected_location <- NULL
     
   }, error = function(e) {
-    showModal(modalDialog(
-      title = "❌ Error",
-      div(class = "alert alert-danger", paste("Terjadi kesalahan:", e$message)),
-      footer = modalButton("OK")
-    ))
+    # FIXED: Close registration modal even when error occurs
+    values$show_registration_modal <- FALSE
+    reset_registration_form()
+    
+    # Clean up modal state
+    shinyjs::runjs("
+      $('.modal-backdrop').remove();
+      $('body').removeClass('modal-open');
+      $('body').css('padding-right', '');
+      $('body').css('overflow', '');
+    ")
+    
+    # Clear selected location
+    values$selected_location <- NULL
+    
+    # Show error modal
+    shinyjs::delay(200, {
+      showModal(modalDialog(
+        title = "❌ Error",
+        div(class = "alert alert-danger", paste("Terjadi kesalahan:", e$message)),
+        footer = modalButton("OK")
+      ))
+    })
   })
 })
 
