@@ -857,318 +857,57 @@ server <- function(input, output, session) {
     })
   })
   
-  # FIXED: Registration submission with corrected success/failure logic
-  observeEvent(input$submit_registration, {
-    # Validate required fields
-    req(input$reg_nama, input$reg_program_studi, input$reg_kontak, input$reg_usulan_dosen, input$reg_alasan)
+  # FIXED: Check registration eligibility - allow reapplication after rejection
+  check_registration_eligibility <- function(student_name, location_name, pendaftaran_data = NULL, periode_data = NULL) {
+    # Check if registration period is open
+    if(!is_registration_open(periode_data)) {
+      return(list(eligible = FALSE, reason = "Periode pendaftaran tidak aktif"))
+    }
     
-    tryCatch({
-      showNotification("Memproses pendaftaran...", type = "message")
-      
-      # Step 1: Validate registration eligibility
-      eligibility <- check_registration_eligibility(
-        input$reg_nama, 
-        values$selected_location$nama_lokasi, 
-        values$pendaftaran_data, 
-        values$periode_data
-      )
-      
-      if (!eligibility$eligible) {
-        showModal(modalDialog(
-          title = "❌ Tidak Dapat Mendaftar",
-          div(class = "alert alert-danger", 
-              h5("Pendaftaran Ditolak:"),
-              p(eligibility$reason)
-          ),
-          footer = modalButton("OK")
-        ))
-        return()
-      }
-      
-      # Step 2: Check quota availability
-      quota_status <- get_current_quota_status(
-        values$selected_location$nama_lokasi, 
-        values$pendaftaran_data, 
-        values$lokasi_data
-      )
-      
-      if (quota_status$available_quota <= 0) {
-        showModal(modalDialog(
-          title = "❌ Kuota Penuh",
-          div(class = "alert alert-warning", 
-              h5("Kuota Habis:"),
-              p("Maaf, kuota untuk lokasi ini sudah penuh."),
-              p(paste("Kuota Total:", quota_status$total_quota)),
-              p(paste("Sudah Terdaftar:", quota_status$used_quota)),
-              p("Silakan pilih lokasi lain atau tunggu pembukaan kuota tambahan.")
-          ),
-          footer = modalButton("OK")
-        ))
-        return()
-      }
-      
-      # Step 3: Validate document uploads
-      doc_validation <- validate_documents(list(
-        reg_cv_mahasiswa = input$reg_cv_mahasiswa,
-        reg_form_rekomendasi = input$reg_form_rekomendasi,
-        reg_form_komitmen = input$reg_form_komitmen,
-        reg_transkrip_nilai = input$reg_transkrip_nilai
-      ))
-      
-      if (!doc_validation$valid) {
-        missing_doc_names <- c(
-          reg_cv_mahasiswa = "CV Mahasiswa",
-          reg_form_rekomendasi = "Form Rekomendasi Program Studi", 
-          reg_form_komitmen = "Form Komitmen Mahasiswa",
-          reg_transkrip_nilai = "Transkrip Nilai"
-        )
-        
-        showModal(modalDialog(
-          title = "📎 Dokumen Tidak Lengkap",
-          div(class = "alert alert-warning", 
-              h5("Dokumen yang Belum Diupload:"),
-              tags$ul(
-                lapply(doc_validation$missing, function(doc) {
-                  tags$li(missing_doc_names[doc])
-                })
-              ),
-              p("Harap upload semua dokumen yang diperlukan dalam format PDF.")
-          ),
-          footer = modalButton("OK")
-        ))
-        return()
-      }
-      
-      # Step 4: Process file uploads with enhanced error handling
-      showNotification("Mengupload dokumen...", type = "message")
-      
-      doc_paths <- list()
-      upload_dir <- "www/documents"
-      
-      # Ensure upload directory exists
-      if (!dir.exists(upload_dir)) {
-        tryCatch({
-          dir.create(upload_dir, recursive = TRUE)
-          showNotification("Direktori dokumen berhasil dibuat", type = "message")
-        }, error = function(e) {
-          stop("Gagal membuat direktori upload: ", e$message)
-        })
-      }
-      
-      required_docs <- c("reg_cv_mahasiswa", "reg_form_rekomendasi", "reg_form_komitmen", "reg_transkrip_nilai")
-      
-      # Process each document upload with validation
-      for (doc in required_docs) {
-        if (!is.null(input[[doc]])) {
-          tryCatch({
-            # Validate file extension
-            file_ext <- tools::file_ext(input[[doc]]$name)
-            if (tolower(file_ext) != "pdf") {
-              stop(paste("File", gsub("reg_", "", doc), "harus dalam format PDF"))
-            }
-            
-            # Validate file size (max 10MB)
-            file_size <- file.info(input[[doc]]$datapath)$size
-            if (file_size > 10 * 1024 * 1024) {
-              stop(paste("File", gsub("reg_", "", doc), "terlalu besar (maksimal 10MB)"))
-            }
-            
-            # Create unique filename with clean student name and timestamp
-            clean_name <- gsub("[^A-Za-z0-9]", "_", input$reg_nama)
-            timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-            new_filename <- paste0(gsub("reg_", "", doc), "_", clean_name, "_", timestamp, ".", file_ext)
-            doc_path <- file.path(upload_dir, new_filename)
-            
-            # Copy file with validation
-            if (file.copy(input[[doc]]$datapath, doc_path, overwrite = FALSE)) {
-              doc_paths[[doc]] <- paste0("documents/", new_filename)
-              showNotification(paste("✅", gsub("reg_", "", doc), "berhasil diupload"), type = "message")
-            } else {
-              stop(paste("Gagal menyimpan dokumen", gsub("reg_", "", doc)))
-            }
-            
-            # Verify file was saved correctly
-            if (!file.exists(doc_path)) {
-              stop(paste("File", gsub("reg_", "", doc), "tidak tersimpan dengan benar"))
-            }
-            
-          }, error = function(e) {
-            showNotification(paste("❌ Error upload", gsub("reg_", "", doc), ":", e$message), type = "error")
-            # Clean up any partially uploaded files
-            if (exists("doc_path") && file.exists(doc_path)) {
-              unlink(doc_path)
-            }
-            stop("Upload dokumen gagal")
-          })
-        }
-      }
-      
-      # Step 5: Generate proper registration ID
-      new_id <- get_next_registration_id(values$pendaftaran_data)
-      showNotification(paste("Membuat pendaftaran dengan ID:", new_id), type = "message")
-      
-      # Step 6: Create new registration entry with complete validation
-      new_registration <- data.frame(
-        id_pendaftaran = new_id,
-        timestamp = Sys.time(),
-        nama_mahasiswa = trimws(input$reg_nama),  # Remove extra whitespace
-        program_studi = input$reg_program_studi,
-        kontak = trimws(input$reg_kontak),
-        pilihan_lokasi = values$selected_location$nama_lokasi,
-        alasan_pemilihan = trimws(input$reg_alasan),
-        usulan_dosen_pembimbing = trimws(input$reg_usulan_dosen),
-        cv_mahasiswa_path = ifelse(is.null(doc_paths[["reg_cv_mahasiswa"]]), "", doc_paths[["reg_cv_mahasiswa"]]),
-        form_rekomendasi_prodi_path = ifelse(is.null(doc_paths[["reg_form_rekomendasi"]]), "", doc_paths[["reg_form_rekomendasi"]]),
-        form_komitmen_mahasiswa_path = ifelse(is.null(doc_paths[["reg_form_komitmen"]]), "", doc_paths[["reg_form_komitmen"]]),
-        transkrip_nilai_path = ifelse(is.null(doc_paths[["reg_transkrip_nilai"]]), "", doc_paths[["reg_transkrip_nilai"]]),
-        status_pendaftaran = "Diajukan",
-        alasan_penolakan = NA,
-        stringsAsFactors = FALSE
-      )
-      
-      # Step 7: FIXED - Save data with improved success detection
-      showNotification("Menyimpan data pendaftaran...", type = "message")
-      
-      # FIXED: Separate the in-memory update from file save to ensure success detection
-      registration_success <- FALSE
-      file_save_success <- FALSE
-      
-      tryCatch({
-        # First, add to reactive values (this should always succeed)
-        values$pendaftaran_data <- rbind(values$pendaftaran_data, new_registration)
-        values$last_registration_id <- new_id
-        values$last_update_timestamp <- Sys.time()  # Force reactive updates
-        
-        # Mark in-memory registration as successful
-        registration_success <- TRUE
-        showNotification("✅ Data pendaftaran berhasil disimpan di memori", type = "message")
-        
-        # Ensure data directory exists
-        if (!dir.exists("data")) {
-          dir.create("data", recursive = TRUE)
-        }
-        
-        # FIXED: Try to save to file, but don't let failure affect registration success
-        tryCatch({
-          save_pendaftaran_data(values$pendaftaran_data)
-          file_save_success <- TRUE
-          showNotification("✅ Data pendaftaran berhasil disimpan ke file", type = "message")
-        }, error = function(e) {
-          showNotification(paste("⚠️ Warning: Gagal menyimpan ke file:", e$message), type = "warning")
-          showNotification("📝 Pendaftaran tetap berhasil dan tersimpan di sistem", type = "message")
-          # Don't change registration_success - registration is still valid
-        })
-        
-      }, error = function(e) {
-        # This should rarely happen since adding to reactive values is simple
-        stop(paste("Gagal menyimpan data pendaftaran:", e$message))
-      })
-      
-      # Step 8: FIXED - Show success message based on registration success, not file save
-      if (registration_success) {
-        # FIXED: Always show success if registration was added to reactive values
-        showNotification("🎉 Pendaftaran berhasil disubmit!", type = "success")
-        
-        showModal(modalDialog(
-          title = div(style = "text-align: center;",
-                      h3("🎉 Pendaftaran Berhasil Disubmit!", style = "color: #28a745;")
-          ),
-          div(style = "text-align: center; padding: 20px;",
-              # Registration details section
-              div(style = "background: #d4edda; padding: 20px; border-radius: 10px; margin-bottom: 20px;",
-                  h4("📋 Detail Pendaftaran Anda", style = "color: #155724; margin-bottom: 15px;"),
-                  fluidRow(
-                    column(6,
-                           p(strong("ID Pendaftaran: "), span(new_id, style = "color: #007bff; font-weight: bold; font-size: 1.3em;")),
-                           p(strong("Nama: "), input$reg_nama),
-                           p(strong("Program Studi: "), input$reg_program_studi)
-                    ),
-                    column(6,
-                           p(strong("Lokasi: "), values$selected_location$nama_lokasi),
-                           p(strong("Status: "), span("⏳ Diajukan", style = "color: #856404; font-weight: bold;")),
-                           p(strong("Tanggal Submit: "), format(Sys.time(), "%d-%m-%Y %H:%M"))
-                    )
-                  ),
-                  hr(),
-                  p(strong("📎 Dokumen Terupload: "), length(doc_paths), "dari 4 dokumen wajib"),
-                  div(style = "font-size: 0.9em; color: #155724;",
-                      lapply(names(doc_paths), function(doc_name) {
-                        clean_doc_name <- switch(doc_name,
-                                                 "reg_cv_mahasiswa" = "CV Mahasiswa",
-                                                 "reg_form_rekomendasi" = "Form Rekomendasi",
-                                                 "reg_form_komitmen" = "Form Komitmen", 
-                                                 "reg_transkrip_nilai" = "Transkrip Nilai",
-                                                 doc_name)
-                        p("✅ ", clean_doc_name, style = "margin: 2px 0;")
-                      })
-                  ),
-                  # FIXED: Add file save status info
-                  if (file_save_success) {
-                    div(style = "margin-top: 10px; padding: 10px; background: #c3e6cb; border-radius: 6px;",
-                        p("💾 Data berhasil disimpan permanen", style = "margin: 0; color: #155724; font-size: 0.9em;"))
-                  } else {
-                    div(style = "margin-top: 10px; padding: 10px; background: #ffeaa7; border-radius: 6px;",
-                        p("📝 Data tersimpan di sistem (file backup mungkin tertunda)", style = "margin: 0; color: #856404; font-size: 0.9em;"))
-                  }
-              ),
-              
-              # Next steps section
-              div(style = "background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
-                  h5("📌 Langkah Selanjutnya:", style = "color: #856404; margin-bottom: 10px;"),
-                  tags$ul(style = "text-align: left; color: #856404;",
-                          tags$li("Pendaftaran Anda akan direview oleh admin dalam 2-3 hari kerja"),
-                          tags$li("Anda akan dihubungi melalui kontak yang telah diberikan"),
-                          tags$li("Simpan ID Pendaftaran ini untuk referensi: ", strong(new_id)),
-                          tags$li("Cek status terbaru di menu 'Cek Status' menggunakan nama Anda")
-                  )
-              ),
-              
-              # Important notes section
-              div(style = "background: #e3f2fd; padding: 10px; border-radius: 6px; font-size: 0.9em;",
-                  p(strong("💡 Catatan Penting:"), style = "color: #1976d2; margin-bottom: 5px;"),
-                  p("• Pastikan kontak yang diberikan aktif dan dapat dihubungi", style = "margin: 2px 0; color: #1565c0;"),
-                  p("• Jangan mendaftar ulang kecuali pendaftaran ini ditolak", style = "margin: 2px 0; color: #1565c0;"),
-                  p("• Dokumen yang sudah diupload tidak dapat diubah", style = "margin: 2px 0; color: #1565c0;")
-              )
-          ),
-          footer = div(style = "text-align: center;",
-                       actionButton("close_success_modal", "✅ Saya Mengerti", 
-                                    class = "btn btn-success",
-                                    style = "font-size: 1.1em; padding: 10px 30px;")
-          ),
-          easyClose = FALSE,
-          size = "l"
-        ))
+    if(is.null(pendaftaran_data)) {
+      if(exists("pendaftaran_data")) {
+        pendaftaran_data <- get("pendaftaran_data", envir = .GlobalEnv)
       } else {
-        # This should never happen now, but keeping as safety net
-        stop("Pendaftaran gagal disimpan")
+        return(list(eligible = TRUE, reason = ""))
+      }
+    }
+    
+    # FIXED: Only check for active registrations (Diajukan or Disetujui)
+    # Allow students to register again if their previous registration was rejected
+    existing_active <- pendaftaran_data[
+      pendaftaran_data$nama_mahasiswa == student_name & 
+        pendaftaran_data$status_pendaftaran %in% c("Diajukan", "Disetujui"), 
+    ]
+    
+    if(nrow(existing_active) > 0) {
+      # Check if they have active registration in the SAME location
+      same_location <- existing_active[existing_active$pilihan_lokasi == location_name, ]
+      if(nrow(same_location) > 0) {
+        status <- same_location$status_pendaftaran[1]
+        if(status == "Diajukan") {
+          return(list(eligible = FALSE, reason = "Anda sudah mendaftar di lokasi ini dan sedang dalam proses review"))
+        } else if(status == "Disetujui") {
+          return(list(eligible = FALSE, reason = "Anda sudah diterima di lokasi ini"))
+        }
       }
       
-    }, error = function(e) {
-      # FIXED: Comprehensive error handling that doesn't interfere with success case
-      error_message <- paste("Terjadi kesalahan saat memproses pendaftaran:", e$message)
-      
-      showModal(modalDialog(
-        title = "❌ Error Pendaftaran",
-        div(class = "alert alert-danger",
-            h5("Pendaftaran Gagal"),
-            p(error_message),
-            hr(),
-            h6("Saran Penyelesaian:"),
-            tags$ul(
-              tags$li("Periksa koneksi internet Anda"),
-              tags$li("Pastikan semua dokumen dalam format PDF dan ukuran < 10MB"),
-              tags$li("Refresh halaman dan coba lagi"),
-              tags$li("Jika masalah berlanjut, hubungi admin sistem")
-            )
-        ),
-        footer = modalButton("OK")
-      ))
-      
-      # Log error for debugging (in real app, this would go to logs)
-      cat("Registration error:", e$message, "\n")
-    })
-  })
+      # Check if they have active registration in DIFFERENT location
+      different_location <- existing_active[existing_active$pilihan_lokasi != location_name, ]
+      if(nrow(different_location) > 0) {
+        other_location <- different_location$pilihan_lokasi[1]
+        status <- different_location$status_pendaftaran[1]
+        if(status == "Diajukan") {
+          return(list(eligible = FALSE, reason = paste("Anda sudah mendaftar di lokasi '", other_location, "' dan sedang dalam proses review. Tunggu hasil review terlebih dahulu.")))
+        } else if(status == "Disetujui") {
+          return(list(eligible = FALSE, reason = paste("Anda sudah diterima di lokasi '", other_location, "'. Tidak dapat mendaftar ke lokasi lain.")))
+        }
+      }
+    }
+    
+    # FIXED: Allow registration if no active registrations found
+    # (This includes cases where previous registrations were rejected)
+    return(list(eligible = TRUE, reason = ""))
+  }
   
   # FIXED: Handle success modal closure with proper registration modal cleanup
   observeEvent(input$close_success_modal, {
