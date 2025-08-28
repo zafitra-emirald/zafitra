@@ -49,13 +49,14 @@ Laboratorium Sosial (Social Laboratory) is a community engagement program where 
 ### Prerequisites
 
 ```r
-# Required R packages
+# Required R packages (including MongoDB support)
 install.packages(c(
   "shiny",
   "shinydashboard", 
   "DT",
   "dplyr",
-  "shinyjs"
+  "shinyjs",
+  "mongolite"  # MongoDB driver
 ))
 ```
 
@@ -68,21 +69,77 @@ install.packages(c(
    ```
 
 2. **Run the application**
+   
+   **Option A: RStudio (Traditional)**
    ```r
    # Run the application
    shiny::runApp()
    ```
+   
+   **Option B: Visual Studio Code (Recommended for Development)**
+   
+   1. **Install VS Code and R Extension**:
+      - Download and install [Visual Studio Code](https://code.visualstudio.com/)
+      - Install the R extension by REditorSupport
+      - Install R LSP Client extension (optional, for better code completion)
+   
+   2. **Open Project in VS Code**:
+      ```bash
+      code .
+      ```
+   
+   3. **Run via R Terminal in VS Code**:
+      - Open Terminal in VS Code (Ctrl+` or Cmd+`)
+      - Start R:
+        ```bash
+        R
+        ```
+      - Run the application:
+        ```r
+        # Basic run
+        shiny::runApp()
+        
+        # With auto-reload for development (recommended)
+        options(shiny.autoreload = TRUE)
+        shiny::runApp()
+        
+        # Specify custom port and host
+        shiny::runApp(port = 3838, host = "0.0.0.0")
+        ```
+   
+   4. **Alternative: Create Run Script**:
+      Create `run_app.R` file:
+      ```r
+      # run_app.R
+      options(shiny.autoreload = TRUE)
+      shiny::runApp(port = 3838, host = "0.0.0.0")
+      ```
+      Run with:
+      ```bash
+      Rscript run_app.R
+      ```
+   
+   **Option C: Command Line**
+   ```bash
+   # From project directory
+   R -e "shiny::runApp()"
+   
+   # With specific port
+   R -e "shiny::runApp(port=3838, host='0.0.0.0')"
+   ```
 
 3. **Access the application**
    - Open your browser to `http://localhost:3838` (or displayed URL)
-   - For admin access, click "Admin Login" and use credentials: `admin` / `admin123`
+   - For admin access, use credentials: username `adminlabsos`, password `labsosunu4869`
 
 ## Project Structure
 
 ```
 labsos/
-├── README.md                 # This file
+├── README.md                 # This file  
 ├── CLAUDE.md                 # Development guidance
+├── run_app.R                 # Optional app runner script
+├── migrate_rds_to_mongodb.R  # Data migration script
 ├── Requirement/              # Business requirements and specifications
 │   ├── Product Requirement - Sistem Informasi Labsos - Requirement List.csv
 │   ├── Product Requirement - Sistem Informasi Labsos - List of Function.csv
@@ -91,12 +148,71 @@ labsos/
 ├── ui.R                      # User interface definition
 ├── server.R                  # Server-side logic
 ├── labsos.Rproj              # R Studio project file
-└── data/                     # Persistent data storage (auto-created)
-    ├── kategori_data.rds
-    ├── periode_data.rds
-    ├── lokasi_data.rds
-    └── pendaftaran_data.rds
+├── fn/                       # Function files
+│   ├── mongodb_config.R               # MongoDB connection configuration
+│   ├── load_or_create_data_mongo.R    # MongoDB data loading functions  
+│   ├── save_*_data_mongo.R            # MongoDB data saving functions
+│   ├── data_layer_wrapper.R           # MongoDB/RDS abstraction layer
+│   ├── load_or_create_data.R          # RDS data loading (fallback)
+│   └── save_*_data.R                  # RDS data saving (fallback)
+├── data/                     # RDS backup files (fallback storage)
+│   ├── kategori_data.rds
+│   ├── periode_data.rds  
+│   ├── lokasi_data.rds
+│   └── pendaftaran_data.rds
+└── www/                      # Static web assets
+    ├── documents/            # Student document uploads (PDF)
+    └── images/               # Location photos
 ```
+
+## Database Configuration
+
+The application uses **MongoDB Atlas** as the primary database with automatic RDS file fallback:
+
+### MongoDB Atlas (Primary)
+- **Database**: `labsos`
+- **Collections**: `kategori_data`, `periode_data`, `lokasi_data`, `pendaftaran_data`  
+- **Connection**: Automatic connection with built-in failover
+- **Benefits**: Cloud-native, scalable, real-time collaboration
+
+### RDS Files (Fallback)
+- **Location**: `data/` directory
+- **Usage**: Automatic fallback if MongoDB unavailable
+- **Migration**: Use `migrate_rds_to_mongodb.R` to transfer RDS data to MongoDB
+
+## Development Workflow in Visual Studio Code
+
+### Recommended VS Code Extensions
+```
+R (by REditorSupport)         # Core R language support
+R LSP Client                  # IntelliSense and code completion  
+R Debugger                    # Debugging support
+Code Spell Checker            # Spell checking for docs
+```
+
+### Development Tips
+
+1. **Hot Reloading**: Enable auto-reload for faster development
+   ```r
+   options(shiny.autoreload = TRUE)
+   shiny::runApp()
+   ```
+
+2. **VS Code Shortcuts**:
+   - `Ctrl+Shift+P` (Cmd+Shift+P): Command palette
+   - `Ctrl+`` (Cmd+`): Toggle terminal
+   - `Ctrl+Shift+`` (Cmd+Shift+`): Create new terminal
+
+3. **Debugging**:
+   - Add `browser()` statements for breakpoints
+   - Use R's built-in debugging tools
+   - Check R console for error messages
+
+4. **Performance Monitoring**:
+   ```r
+   options(shiny.reactlog = TRUE)
+   shiny::runApp()
+   ```
 
 ## Data Models
 

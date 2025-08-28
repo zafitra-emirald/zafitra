@@ -12,13 +12,14 @@ This is a **Labsos (Laboratorium Sosial) Information System** built with R Shiny
 - **DT**: DataTables for interactive data display
 - **dplyr**: Data manipulation and processing
 - **shinyjs**: JavaScript functionality enhancement
-- **File-based storage**: RDS files for persistence (no external database)
+- **Database**: MongoDB Atlas for data persistence with RDS fallback
+- **mongolite**: MongoDB R driver for database connectivity
 
 ## Development Commands
 
 ```r
 # Install dependencies
-install.packages(c("shiny", "shinydashboard", "DT", "dplyr", "shinyjs"))
+install.packages(c("shiny", "shinydashboard", "DT", "dplyr", "shinyjs", "mongolite"))
 
 # Run the application from project root
 shiny::runApp()
@@ -35,15 +36,27 @@ shiny::runApp()
 2. **ui.R**: Complete UI definition with custom CSS and responsive design  
 3. **server.R**: Reactive server logic, event handlers, data operations
 
-### Data Model (RDS files)
-- **kategori_data.rds**: Location categories (Pendidikan, Kesehatan, Teknologi)
-- **periode_data.rds**: Time-bounded registration periods with status
-- **lokasi_data.rds**: Community locations with quotas and program restrictions
-- **pendaftaran_data.rds**: Student applications with documents and approval status
+### Data Model (MongoDB Collections)
+- **kategori_data**: Location categories (Pendidikan, Kesehatan, Teknologi)
+- **periode_data**: Time-bounded registration periods with status
+- **lokasi_data**: Community locations with quotas and program restrictions
+- **pendaftaran_data**: Student applications with documents and approval status
+
+### MongoDB Configuration
+- **Database**: `labsos` on MongoDB Atlas
+- **Connection**: `mongodb+srv://labsos:T5CmgVtU2mV4K01t@cluster0.ejeivru.mongodb.net/labsos`
+- **Collections**: 4 main collections mapping to data entities
+- **Fallback**: Automatic RDS file fallback if MongoDB unavailable
+- **Data Layer**: Abstracted through wrapper functions for seamless switching
 
 ### File Organization
 ```
-data/              # Auto-created for RDS storage
+fn/                # Function files including MongoDB integration
+  mongodb_config.R          # MongoDB connection configuration
+  load_or_create_data_mongo.R  # MongoDB data loading functions
+  save_*_data_mongo.R       # MongoDB data saving functions  
+  data_layer_wrapper.R      # MongoDB/RDS abstraction layer
+data/              # RDS backup files (fallback storage)
 www/documents/     # Student document uploads (PDF)
 www/images/        # Location photos
 Requirement/       # Business requirements documentation
@@ -72,9 +85,12 @@ Requirement/       # Business requirements documentation
 - **Form Komitmen**: https://drive.google.com/file/d/1ueuzgsDjykQcVemVT922c8eswAbaHV4m/view
 
 ### Data Persistence Pattern
-- Auto-initialization via `load_or_create_data()` in global.R:43
-- Immediate persistence: all changes saved to RDS files
-- File structure created automatically if missing
+- **MongoDB Primary**: Auto-initialization via `initialize_data_layer()` in global.R:91
+- **RDS Fallback**: Automatic fallback to RDS files if MongoDB unavailable  
+- **Immediate persistence**: All changes saved to active data layer (MongoDB or RDS)
+- **Wrapper Functions**: `save_*_data_wrapper()` functions handle layer switching
+- **Data Refresh**: `refresh_*_data()` functions reload from active data layer
+- **Connection Pooling**: Automatic connection management with proper cleanup
 
 ## Critical Architecture Details
 
@@ -85,7 +101,7 @@ Requirement/       # Business requirements documentation
 - `conditionalPanel()` for role-based UI switching
 
 ### Authentication & Security
-- Hardcoded admin credentials: username "admin", password "admin123"
+- Hardcoded admin credentials: username "adminlabsos", password "labsosunu4869"
 - Session-based authentication (no persistent sessions)
 - File uploads stored in publicly accessible `www/` directory
 - Basic validation only - no advanced security measures

@@ -8,6 +8,7 @@ library(shinydashboard)
 library(DT)
 library(dplyr)
 library(shinyjs)
+library(mongolite)
 
 # ================================
 # 2. GLOBAL CONSTANTS
@@ -53,11 +54,23 @@ admin_credentials <- data.frame(
 # ================================
 
 # Source all function files from fn/ directory
+# MongoDB functions (new)
+source("fn/mongodb_config.R")
+source("fn/load_or_create_data_mongo.R")
+source("fn/save_kategori_data_mongo.R")
+source("fn/save_periode_data_mongo.R")
+source("fn/save_lokasi_data_mongo.R") 
+source("fn/save_pendaftaran_data_mongo.R")
+
+# Legacy RDS functions (for fallback if needed)
 source("fn/load_or_create_data.R")
 source("fn/save_kategori_data.R")
 source("fn/save_periode_data.R")
 source("fn/save_lokasi_data.R") 
 source("fn/save_pendaftaran_data.R")
+
+# Data layer wrapper (handles MongoDB/RDS fallback)
+source("fn/data_layer_wrapper.R")
 source("fn/validate_admin.R")
 source("fn/is_registration_open.R")
 source("fn/check_category_usage.R")
@@ -66,12 +79,13 @@ source("fn/check_registration_eligibility.R")
 source("fn/get_current_quota_status.R")
 source("fn/validate_documents.R")
 source("fn/search_registrations.R")
-source("fn/cleanup_old_backups.R")
-source("fn/restore_from_backup.R")
+# Backup function stubs (disabled after MongoDB migration)
+source("fn/backup_stubs.R")
 
 # ================================
 # 6. INITIALIZE DATA
 # ================================
 
 # Load or create initial data when global.R is sourced
-load_or_create_data()
+# Initialize data layer with MongoDB/RDS fallback
+data_layer_result <- initialize_data_layer()
