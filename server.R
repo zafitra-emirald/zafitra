@@ -7,10 +7,10 @@ server <- function(input, output, session) {
   # ================================
   
   # Load fresh data from RDS files to ensure session refresh doesn't lose data
-  fresh_kategori_data <- if(file.exists("data/kategori_data.rds")) readRDS("data/kategori_data.rds") else kategori_data
-  fresh_periode_data <- if(file.exists("data/periode_data.rds")) readRDS("data/periode_data.rds") else periode_data
-  fresh_lokasi_data <- if(file.exists("data/lokasi_data.rds")) readRDS("data/lokasi_data.rds") else lokasi_data
-  fresh_pendaftaran_data <- if(file.exists("data/pendaftaran_data.rds")) readRDS("data/pendaftaran_data.rds") else pendaftaran_data
+  fresh_kategori_data <- refresh_kategori_data()
+  fresh_periode_data <- refresh_periode_data()
+  fresh_lokasi_data <- refresh_lokasi_data()
+  fresh_pendaftaran_data <- refresh_pendaftaran_data()
   
   values <- reactiveValues(
     admin_logged_in = FALSE,
@@ -207,8 +207,8 @@ server <- function(input, output, session) {
           stringsAsFactors = FALSE
         )
         values$kategori_data <- rbind(values$kategori_data, new_kategori)
-        save_kategori_data(values$kategori_data)
-        values$kategori_data <- readRDS("data/kategori_data.rds")
+        save_kategori_data_wrapper(values$kategori_data)
+        values$kategori_data <- refresh_kategori_data()
         showNotification("Kategori baru berhasil ditambahkan!", type = "message")
       } else {
         # EDIT EXISTING KATEGORI
@@ -219,8 +219,8 @@ server <- function(input, output, session) {
                                                                         "Tidak ada deskripsi", input$kategori_deskripsi)
           values$kategori_data[row_idx, "isu_strategis"] <- ifelse(is.null(input$kategori_isu) || input$kategori_isu == "", 
                                                                    "Tidak ada isu strategis", input$kategori_isu)
-          save_kategori_data(values$kategori_data)
-          values$kategori_data <- readRDS("data/kategori_data.rds")
+          save_kategori_data_wrapper(values$kategori_data)
+          values$kategori_data <- refresh_kategori_data()
           showNotification("Kategori berhasil diperbarui!", type = "message")
         }
       }
@@ -278,8 +278,8 @@ server <- function(input, output, session) {
       selected_row <- input$kategori_table_rows_selected
       kategori_name <- values$kategori_data[selected_row, "nama_kategori"]
       values$kategori_data <- values$kategori_data[-selected_row, ]
-      save_kategori_data(values$kategori_data)
-      values$kategori_data <- readRDS("data/kategori_data.rds")
+      save_kategori_data_wrapper(values$kategori_data)
+      values$kategori_data <- refresh_kategori_data()
       
       # Update choices in other components
       updateSelectInput(session, "lokasi_kategori", choices = values$kategori_data$nama_kategori)
@@ -387,8 +387,8 @@ server <- function(input, output, session) {
           stringsAsFactors = FALSE
         )
         values$periode_data <- rbind(values$periode_data, new_periode)
-        save_periode_data(values$periode_data)
-        values$periode_data <- readRDS("data/periode_data.rds")
+        save_periode_data_wrapper(values$periode_data)
+        values$periode_data <- refresh_periode_data()
         showNotification("Periode baru berhasil ditambahkan!", type = "message")
       } else {
         # EDIT EXISTING PERIODE
@@ -398,8 +398,8 @@ server <- function(input, output, session) {
           values$periode_data[row_idx, "waktu_mulai"] <- input$periode_mulai
           values$periode_data[row_idx, "waktu_selesai"] <- input$periode_selesai
           values$periode_data[row_idx, "status"] <- input$periode_status
-          save_periode_data(values$periode_data)
-          values$periode_data <- readRDS("data/periode_data.rds")
+          save_periode_data_wrapper(values$periode_data)
+          values$periode_data <- refresh_periode_data()
           showNotification("Periode berhasil diperbarui!", type = "message")
         }
       }
@@ -442,8 +442,8 @@ server <- function(input, output, session) {
       selected_row <- input$periode_table_rows_selected
       periode_name <- values$periode_data[selected_row, "nama_periode"]
       values$periode_data <- values$periode_data[-selected_row, ]
-      save_periode_data(values$periode_data)
-      values$periode_data <- readRDS("data/periode_data.rds")
+      save_periode_data_wrapper(values$periode_data)
+      values$periode_data <- refresh_periode_data()
       
       showNotification(paste("Periode '", periode_name, "' berhasil dihapus!"), type = "message")
       removeModal()
@@ -604,10 +604,10 @@ server <- function(input, output, session) {
           new_lokasi <- new_lokasi[, names(values$lokasi_data)]
           values$lokasi_data <- rbind(values$lokasi_data, new_lokasi)
         })
-        save_lokasi_data(values$lokasi_data)
+        save_lokasi_data_wrapper(values$lokasi_data)
         
         # PRODUCTION FIX: Reload data from file to ensure consistency
-        values$lokasi_data <- readRDS("data/lokasi_data.rds")
+        values$lokasi_data <- refresh_lokasi_data()
         
         showNotification("Lokasi baru berhasil ditambahkan!", type = "message")
         
@@ -652,10 +652,10 @@ server <- function(input, output, session) {
           values$lokasi_data$program_studi[[row_idx]] <- as.character(selected_prodi)
           
           # Force save with structure validation
-          save_lokasi_data(values$lokasi_data)
+          save_lokasi_data_wrapper(values$lokasi_data)
           
           # PRODUCTION FIX: Reload data from file to ensure consistency
-          values$lokasi_data <- readRDS("data/lokasi_data.rds")
+          values$lokasi_data <- refresh_lokasi_data()
           
           # Debug notification showing what was saved
           prodi_text <- if(length(selected_prodi) > 0) paste(selected_prodi, collapse=", ") else "Kosong"
@@ -705,10 +705,10 @@ server <- function(input, output, session) {
       selected_row <- input$lokasi_table_rows_selected
       lokasi_name <- values$lokasi_data[selected_row, "nama_lokasi"]
       values$lokasi_data <- values$lokasi_data[-selected_row, ]
-      save_lokasi_data(values$lokasi_data)
+      save_lokasi_data_wrapper(values$lokasi_data)
       
       # PRODUCTION FIX: Reload data from file to ensure consistency
-      values$lokasi_data <- readRDS("data/lokasi_data.rds")
+      values$lokasi_data <- refresh_lokasi_data()
       
       showNotification(paste("Lokasi '", lokasi_name, "' berhasil dihapus!"), type = "message")
       removeModal()
@@ -2087,8 +2087,8 @@ observeEvent(input$submit_registration, {
     # Save to RDS file
     tryCatch({
       if (!dir.exists("data")) dir.create("data", recursive = TRUE)
-      save_pendaftaran_data(values$pendaftaran_data)
-      values$pendaftaran_data <- readRDS("data/pendaftaran_data.rds")
+      save_pendaftaran_data_wrapper(values$pendaftaran_data)
+      values$pendaftaran_data <- refresh_pendaftaran_data()
     }, error = function(e) {
       showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
     })
@@ -2715,8 +2715,8 @@ observeEvent(input$approve_registration_id, {
       }
       
       tryCatch({
-        save_pendaftaran_data(values$pendaftaran_data)
-        values$pendaftaran_data <- readRDS("data/pendaftaran_data.rds")
+        save_pendaftaran_data_wrapper(values$pendaftaran_data)
+        values$pendaftaran_data <- refresh_pendaftaran_data()
       }, error = function(e) {
         showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
       })
@@ -2816,8 +2816,8 @@ observeEvent(input$confirm_reject, {
       values$pendaftaran_data[row_idx, "alasan_penolakan"] <- input$rejection_reason
       
       tryCatch({
-        save_pendaftaran_data(values$pendaftaran_data)
-        values$pendaftaran_data <- readRDS("data/pendaftaran_data.rds")
+        save_pendaftaran_data_wrapper(values$pendaftaran_data)
+        values$pendaftaran_data <- refresh_pendaftaran_data()
       }, error = function(e) {
         showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
       })
@@ -2985,10 +2985,10 @@ observeEvent(input$emergency_restore_btn, {
     
     if (result$success) {
       # Reload data into reactive values
-      values$kategori_data <- if(file.exists("data/kategori_data.rds")) readRDS("data/kategori_data.rds") else data.frame()
-      values$periode_data <- if(file.exists("data/periode_data.rds")) readRDS("data/periode_data.rds") else data.frame()
-      values$lokasi_data <- if(file.exists("data/lokasi_data.rds")) readRDS("data/lokasi_data.rds") else data.frame()
-      values$pendaftaran_data <- if(file.exists("data/pendaftaran_data.rds")) readRDS("data/pendaftaran_data.rds") else data.frame()
+      values$kategori_data <- refresh_kategori_data()
+      values$periode_data <- refresh_periode_data()
+      values$lokasi_data <- refresh_lokasi_data()
+      values$pendaftaran_data <- refresh_pendaftaran_data()
       values$last_update_timestamp <- Sys.time()
       
       # Show success message
