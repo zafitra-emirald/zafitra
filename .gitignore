@@ -2,3 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Environment files containing sensitive information
+.Renviron
+.env
