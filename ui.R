@@ -620,7 +620,7 @@ div.location-grid {
 ui <- dashboardPage(
   # Header
   dashboardHeader(
-    title = "Sistem Informasi Labsos",
+    title = paste("Sistem Informasi Labsos", "v", APP_VERSION),
     tags$li(
       class = "dropdown",
       style = "margin: 8px;",
@@ -665,7 +665,8 @@ ui <- dashboardPage(
                  menuSubItem("Kategori", tabName = "master_kategori"),
                  menuSubItem("Periode", tabName = "master_periode"), 
                  menuSubItem("Lokasi", tabName = "master_lokasi")
-        )
+        ),
+        menuItem("🔄 Backup & Restore", tabName = "backup_restore", icon = icon("history"))
       )
     )
   ),
@@ -970,6 +971,82 @@ ui <- dashboardPage(
               )
             )
           )
+        ),
+        
+        # Backup & Restore Tab
+        tabItem(
+          tabName = "backup_restore",
+          fluidRow(
+            box(
+              title = "🔄 Backup & Restore System", status = "warning", solidHeader = TRUE, width = 12,
+              
+              # Emergency Restore Section
+              div(style = "margin-bottom: 30px; padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;",
+                  h4("⚠️ Emergency Restore", style = "color: #856404; margin-bottom: 15px;"),
+                  p("Use this to quickly restore all data from the most recent backups. This will create a backup of current data before restoration.", 
+                    style = "color: #856404; margin-bottom: 15px;"),
+                  actionButton("emergency_restore_btn", "🚨 Emergency Restore Now", 
+                               class = "btn btn-warning", 
+                               style = "font-size: 1.1em; padding: 12px 24px; margin-right: 15px;"),
+                  div(id = "emergency_restore_status", style = "margin-top: 15px;")
+              ),
+              
+              # Current Backup Status
+              h4("📊 Current Backup Status", style = "color: #007bff; margin: 20px 0 15px 0;"),
+              DT::dataTableOutput("backup_summary_table"),
+              
+              # Manual Restore Section
+              hr(),
+              h4("🔧 Manual Restore", style = "color: #007bff; margin: 20px 0 15px 0;"),
+              p("Select specific backup files to restore:", style = "color: #6c757d; margin-bottom: 20px;"),
+              
+              fluidRow(
+                column(6,
+                       h5("Select Kategori Backup:"),
+                       selectInput("restore_kategori_backup", "", choices = c("Use Latest" = "")),
+                       h5("Select Periode Backup:"),
+                       selectInput("restore_periode_backup", "", choices = c("Use Latest" = "")),
+                ),
+                column(6,
+                       h5("Select Lokasi Backup:"),
+                       selectInput("restore_lokasi_backup", "", choices = c("Use Latest" = "")),
+                       h5("Select Pendaftaran Backup:"),  
+                       selectInput("restore_pendaftaran_backup", "", choices = c("Use Latest" = "")),
+                )
+              ),
+              
+              div(style = "text-align: center; margin-top: 20px;",
+                  checkboxInput("create_restore_backup", "Create backup before restore", value = TRUE, width = "100%"),
+                  br(),
+                  actionButton("manual_restore_btn", "🔄 Restore Selected", 
+                               class = "btn btn-info", 
+                               style = "font-size: 1.1em; padding: 12px 24px; margin-right: 15px;"),
+                  actionButton("refresh_backups_btn", "🔃 Refresh Backup List", 
+                               class = "btn btn-secondary", 
+                               style = "font-size: 1.0em; padding: 10px 20px;")
+              ),
+              
+              div(id = "manual_restore_status", style = "margin-top: 20px;"),
+              
+              # Backup Management
+              hr(),
+              h4("🗂️ Backup Management", style = "color: #007bff; margin: 20px 0 15px 0;"),
+              p("Clean up old backup files to save disk space:", style = "color: #6c757d; margin-bottom: 20px;"),
+              
+              fluidRow(
+                column(6,
+                       numericInput("cleanup_days", "Keep backups newer than (days):", value = 30, min = 1, max = 365)
+                ),
+                column(6, br(),
+                       actionButton("cleanup_backups_btn", "🧹 Cleanup Old Backups", 
+                                    class = "btn btn-outline-danger", 
+                                    style = "margin-top: 5px;")
+                )
+              ),
+              
+              div(id = "cleanup_status", style = "margin-top: 15px;")
+            )
+          )
         )
       )
     ),
@@ -1258,6 +1335,12 @@ ui <- dashboardPage(
               "💡 Klik foto untuk memperbesar/mengecilkan | Klik di luar area atau tombol × untuk menutup")
         )
       )
+    ),
+    
+    # Version Footer
+    div(
+      style = "position: fixed; bottom: 10px; right: 15px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 5px; font-size: 0.8em; color: #666; border: 1px solid #eee; z-index: 1000;",
+      paste("v", APP_VERSION, "•", format(APP_BUILD_DATE, "%Y-%m-%d"))
     )
   )
 )

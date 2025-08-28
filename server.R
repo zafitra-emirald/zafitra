@@ -29,7 +29,16 @@ server <- function(input, output, session) {
   )
   
   # ================================
-  # 2. ADMIN AUTHENTICATION MODULE
+  # 2. VERSION INFO OUTPUT
+  # ================================
+  
+  # Version info output for production verification
+  output$version_info <- renderText({
+    paste("Version:", APP_VERSION, "| Build:", format(APP_BUILD_DATE, "%Y-%m-%d"))
+  })
+  
+  # ================================
+  # 3. ADMIN AUTHENTICATION MODULE
   # ================================
   
   # Admin login status output
@@ -2841,6 +2850,308 @@ observeEvent(input$close_reject_modal, {
         $('body').css('padding-right', '');
         $('body').css('overflow', '');
       ")
+})
+
+# ================================
+# 9. BACKUP & RESTORE MODULE
+# ================================
+
+# Backup summary table
+output$backup_summary_table <- DT::renderDataTable({
+  tryCatch({
+    backup_summary <- get_backup_summary()
+    datatable(
+      backup_summary,
+      options = list(
+        pageLength = 10,
+        searching = FALSE,
+        ordering = FALSE,
+        dom = 't'
+      ),
+      rownames = FALSE
+    )
+  }, error = function(e) {
+    datatable(
+      data.frame(Error = paste("Failed to load backup summary:", e$message)),
+      options = list(dom = 't'),
+      rownames = FALSE
+    )
+  })
+})
+
+# Update backup file selection inputs
+observe({
+  tryCatch({
+    backups <- list_available_backups()
+    
+    if (nrow(backups) > 0) {
+      # Update each backup selection dropdown
+      kategori_choices <- backups[backups$data_type == "kategori_data", "file_path"]
+      if (length(kategori_choices) > 0) {
+        names(kategori_choices) <- basename(kategori_choices)
+        updateSelectInput(session, "restore_kategori_backup", 
+                         choices = c("Use Latest" = "", kategori_choices))
+      }
+      
+      periode_choices <- backups[backups$data_type == "periode_data", "file_path"]  
+      if (length(periode_choices) > 0) {
+        names(periode_choices) <- basename(periode_choices)
+        updateSelectInput(session, "restore_periode_backup",
+                         choices = c("Use Latest" = "", periode_choices))
+      }
+      
+      lokasi_choices <- backups[backups$data_type == "lokasi_data", "file_path"]
+      if (length(lokasi_choices) > 0) {
+        names(lokasi_choices) <- basename(lokasi_choices)
+        updateSelectInput(session, "restore_lokasi_backup",
+                         choices = c("Use Latest" = "", lokasi_choices))
+      }
+      
+      pendaftaran_choices <- backups[backups$data_type == "pendaftaran_data", "file_path"]
+      if (length(pendaftaran_choices) > 0) {
+        names(pendaftaran_choices) <- basename(pendaftaran_choices)
+        updateSelectInput(session, "restore_pendaftaran_backup", 
+                         choices = c("Use Latest" = "", pendaftaran_choices))
+      }
+    }
+  }, error = function(e) {
+    print(paste("Error updating backup choices:", e$message))
+  })
+})
+
+# Refresh backups button
+observeEvent(input$refresh_backups_btn, {
+  tryCatch({
+    # Force refresh of backup summary table
+    output$backup_summary_table <- DT::renderDataTable({
+      backup_summary <- get_backup_summary()
+      datatable(
+        backup_summary,
+        options = list(
+          pageLength = 10,
+          searching = FALSE,
+          ordering = FALSE,
+          dom = 't'
+        ),
+        rownames = FALSE
+      )
+    })
+    
+    # Show success message
+    insertUI(
+      selector = "#refresh_backups_btn",
+      where = "afterEnd",
+      ui = div(
+        class = "alert alert-success",
+        style = "margin-top: 10px;",
+        "✅ Backup list refreshed successfully!",
+        id = "refresh_success_msg"
+      )
+    )
+    
+    # Remove success message after 3 seconds
+    shinyjs::delay(3000, {
+      removeUI("#refresh_success_msg")
+    })
+    
+  }, error = function(e) {
+    insertUI(
+      selector = "#refresh_backups_btn", 
+      where = "afterEnd",
+      ui = div(
+        class = "alert alert-danger",
+        style = "margin-top: 10px;",
+        paste("❌ Error refreshing backups:", e$message),
+        id = "refresh_error_msg"
+      )
+    )
+    
+    shinyjs::delay(5000, {
+      removeUI("#refresh_error_msg")
+    })
+  })
+})
+
+# Emergency restore button
+observeEvent(input$emergency_restore_btn, {
+  tryCatch({
+    # Show processing message
+    output$emergency_restore_status <- renderUI({
+      div(class = "alert alert-info", "🔄 Processing emergency restore...")
+    })
+    
+    # Perform emergency restore
+    result <- emergency_restore(create_restore_backup = TRUE)
+    
+    if (result$success) {
+      # Reload data into reactive values
+      values$kategori_data <- if(file.exists("data/kategori_data.rds")) readRDS("data/kategori_data.rds") else data.frame()
+      values$periode_data <- if(file.exists("data/periode_data.rds")) readRDS("data/periode_data.rds") else data.frame()
+      values$lokasi_data <- if(file.exists("data/lokasi_data.rds")) readRDS("data/lokasi_data.rds") else data.frame()
+      values$pendaftaran_data <- if(file.exists("data/pendaftaran_data.rds")) readRDS("data/pendaftaran_data.rds") else data.frame()
+      values$last_update_timestamp <- Sys.time()
+      
+      # Show success message
+      success_msg <- paste0(
+        "✅ Emergency restore completed successfully!\n",
+        "Restored files:\n",
+        paste(names(result$restored_files), collapse = ", "),
+        "\n\nReload the page to see updated data."
+      )
+      
+      output$emergency_restore_status <- renderUI({
+        div(
+          class = "alert alert-success",
+          style = "white-space: pre-wrap;",
+          success_msg
+        )
+      })
+      
+    } else {
+      # Show error message
+      output$emergency_restore_status <- renderUI({
+        div(
+          class = "alert alert-danger",
+          paste("❌ Emergency restore failed:", result$error %||% "Unknown error")
+        )
+      })
+    }
+    
+  }, error = function(e) {
+    output$emergency_restore_status <- renderUI({
+      div(
+        class = "alert alert-danger",
+        paste("❌ Error during emergency restore:", e$message)
+      )
+    })
+  })
+})
+
+# Manual restore button  
+observeEvent(input$manual_restore_btn, {
+  tryCatch({
+    # Show processing message
+    output$manual_restore_status <- renderUI({
+      div(class = "alert alert-info", "🔄 Processing manual restore...")
+    })
+    
+    # Get selected backup files or use latest
+    backup_files <- list()
+    latest_backups <- get_latest_backups()
+    
+    backup_files[["kategori_data"]] <- if(input$restore_kategori_backup != "") input$restore_kategori_backup else latest_backups[["kategori_data"]]
+    backup_files[["periode_data"]] <- if(input$restore_periode_backup != "") input$restore_periode_backup else latest_backups[["periode_data"]]
+    backup_files[["lokasi_data"]] <- if(input$restore_lokasi_backup != "") input$restore_lokasi_backup else latest_backups[["lokasi_data"]]
+    backup_files[["pendaftaran_data"]] <- if(input$restore_pendaftaran_backup != "") input$restore_pendaftaran_backup else latest_backups[["pendaftaran_data"]]
+    
+    # Remove NULL entries
+    backup_files <- backup_files[!sapply(backup_files, is.null)]
+    
+    if (length(backup_files) == 0) {
+      output$manual_restore_status <- renderUI({
+        div(class = "alert alert-warning", "⚠️ No backup files selected or available for restore.")
+      })
+      return()
+    }
+    
+    # Perform manual restore
+    result <- restore_from_backup(backup_files, input$create_restore_backup)
+    
+    if (result$success) {
+      # Reload data into reactive values
+      values$kategori_data <- if(file.exists("data/kategori_data.rds")) readRDS("data/kategori_data.rds") else data.frame()
+      values$periode_data <- if(file.exists("data/periode_data.rds")) readRDS("data/periode_data.rds") else data.frame()
+      values$lokasi_data <- if(file.exists("data/lokasi_data.rds")) readRDS("data/lokasi_data.rds") else data.frame() 
+      values$pendaftaran_data <- if(file.exists("data/pendaftaran_data.rds")) readRDS("data/pendaftaran_data.rds") else data.frame()
+      values$last_update_timestamp <- Sys.time()
+      
+      # Show success message with details
+      restored_info <- sapply(names(result$restored_files), function(name) {
+        file_info <- result$restored_files[[name]]
+        if (file_info$success) {
+          paste0(name, ": ", file_info$rows_restored, " rows restored")
+        } else {
+          paste0(name, ": FAILED - ", file_info$error)
+        }
+      })
+      
+      success_msg <- paste0(
+        "✅ Manual restore completed successfully!\n\n",
+        "Restoration details:\n",
+        paste(restored_info, collapse = "\n"),
+        "\n\nReload the page to see updated data."
+      )
+      
+      output$manual_restore_status <- renderUI({
+        div(
+          class = "alert alert-success",
+          style = "white-space: pre-wrap;",
+          success_msg
+        )
+      })
+      
+    } else {
+      output$manual_restore_status <- renderUI({
+        div(
+          class = "alert alert-danger",
+          paste("❌ Manual restore failed:", result$error %||% "Unknown error")
+        )
+      })
+    }
+    
+  }, error = function(e) {
+    output$manual_restore_status <- renderUI({
+      div(
+        class = "alert alert-danger",
+        paste("❌ Error during manual restore:", e$message)
+      )
+    })
+  })
+})
+
+# Cleanup backups button
+observeEvent(input$cleanup_backups_btn, {
+  tryCatch({
+    # Show processing message
+    output$cleanup_status <- renderUI({
+      div(class = "alert alert-info", "🔄 Processing backup cleanup...")
+    })
+    
+    # Perform cleanup (dry run first to show what will be deleted)
+    dry_result <- cleanup_old_backups(keep_days = input$cleanup_days, dry_run = TRUE)
+    
+    if (length(dry_result$files_to_delete) == 0) {
+      output$cleanup_status <- renderUI({
+        div(class = "alert alert-info", "ℹ️ No old backup files to cleanup.")
+      })
+      return()
+    }
+    
+    # Actual cleanup
+    cleanup_result <- cleanup_old_backups(keep_days = input$cleanup_days, dry_run = FALSE)
+    
+    cleanup_msg <- paste0(
+      "✅ Backup cleanup completed!\n",
+      "Files deleted: ", length(cleanup_result$files_deleted), "\n",
+      "Space freed: ", round(sum(file.size(cleanup_result$files_deleted), na.rm = TRUE) / 1024 / 1024, 2), " MB"
+    )
+    
+    output$cleanup_status <- renderUI({
+      div(
+        class = "alert alert-success", 
+        style = "white-space: pre-wrap;",
+        cleanup_msg
+      )
+    })
+    
+  }, error = function(e) {
+    output$cleanup_status <- renderUI({
+      div(
+        class = "alert alert-danger",
+        paste("❌ Error during cleanup:", e$message)
+      )
+    })
+  })
 })
 
 # ================================

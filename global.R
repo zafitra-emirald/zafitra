@@ -13,6 +13,19 @@ library(shinyjs)
 # 2. GLOBAL CONSTANTS
 # ================================
 
+# Application version
+APP_VERSION <- "1.0.0"
+APP_BUILD_DATE <- Sys.Date()
+
+# Version check function for production verification
+get_app_version_info <- function() {
+  list(
+    version = APP_VERSION,
+    build_date = format(APP_BUILD_DATE, "%Y-%m-%d"),
+    full_info = paste("Labsos v", APP_VERSION, " (", format(APP_BUILD_DATE, "%Y-%m-%d"), ")", sep = "")
+  )
+}
+
 # Define program studi options
 PROGRAM_STUDI_OPTIONS <- c(
   "Studi Islam Interdisipliner",
@@ -54,6 +67,7 @@ source("fn/get_current_quota_status.R")
 source("fn/validate_documents.R")
 source("fn/search_registrations.R")
 source("fn/cleanup_old_backups.R")
+source("fn/restore_from_backup.R")
 
 # ================================
 # 6. INITIALIZE DATA
