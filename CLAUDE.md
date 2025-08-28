@@ -57,10 +57,19 @@ Requirement/       # Business requirements documentation
 
 ### Key Business Rules
 - Only one active registration period allowed
+- Students identified by NIM (Nomor Induk Mahasiswa) as unique ID
 - Students limited to one registration per period (unless rejected)
 - Location quotas enforced automatically
 - Required documents: Letter of Interest (PDF, max 5MB), CV, recommendation form, commitment form, transcript (all PDF, max 10MB each)
+- Document templates provided with download links in registration form
+- Form Komitmen requires handwritten signature (not typed)
 - Category deletion blocked if used by locations
+
+### Document Templates
+- **Letter of Interest**: https://docs.google.com/document/d/1pT7n8SdpjMKp3ZxXUhGdEvMYEdb3DGEG/edit
+- **CV Mahasiswa**: https://docs.google.com/document/d/16592N2h5Zn4rbgZtea9wM1jfiLSwKObS/edit  
+- **Form Rekomendasi**: https://docs.google.com/document/d/1jF9iV9WG87_KrBk6gSv8yC1EdAAHibvJ/edit
+- **Form Komitmen**: https://drive.google.com/file/d/1ueuzgsDjykQcVemVT922c8eswAbaHV4m/view
 
 ### Data Persistence Pattern
 - Auto-initialization via `load_or_create_data()` in global.R:43
@@ -109,11 +118,22 @@ Requirement/       # Business requirements documentation
 ## Important File Locations & Functions
 
 ### Key Functions (global.R)
-- `load_or_create_data()`: Data initialization and schema setup
+- `load_or_create_data()`: Data initialization and schema setup with migration safety
 - `validate_admin()`: Authentication logic  
 - `is_registration_open()`: Period validation
 - `check_category_usage()`: Referential integrity checking
 - `get_current_quota_status()`: Real-time quota calculations
+- `cleanup_old_backups()`: Backup file management utility
+
+### Production Safety & Backup System
+- **Automatic Backups**: All save operations create timestamped backups
+- **Migration Safety**: Schema changes preserve existing data with rollback protection
+- **Data Integrity**: Comprehensive validation before/after all operations
+- **Backup Types**:
+  - `*_backup_YYYYMMDD_HHMMSS.rds`: Regular save operation backups
+  - `*_migration_backup_YYYYMMDD_HHMMSS.rds`: Pre-migration backups
+  - `*_save_backup_YYYYMMDD_HHMMSS.rds`: Additional save verification backups
+- **Cleanup**: Use `cleanup_old_backups(keep_days = 30, dry_run = FALSE)` to manage disk space
 
 ### Server Event Handlers (server.R)
 - Registration submission: Lines 400+ (complex multi-step validation)

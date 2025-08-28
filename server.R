@@ -6,19 +6,25 @@ server <- function(input, output, session) {
   # 1. REACTIVE VALUES INITIALIZATION
   # ================================
   
+  # Load fresh data from RDS files to ensure session refresh doesn't lose data
+  fresh_kategori_data <- if(file.exists("data/kategori_data.rds")) readRDS("data/kategori_data.rds") else kategori_data
+  fresh_periode_data <- if(file.exists("data/periode_data.rds")) readRDS("data/periode_data.rds") else periode_data
+  fresh_lokasi_data <- if(file.exists("data/lokasi_data.rds")) readRDS("data/lokasi_data.rds") else lokasi_data
+  fresh_pendaftaran_data <- if(file.exists("data/pendaftaran_data.rds")) readRDS("data/pendaftaran_data.rds") else pendaftaran_data
+  
   values <- reactiveValues(
     admin_logged_in = FALSE,
     login_error = FALSE,
-    kategori_data = kategori_data,
-    periode_data = periode_data,
-    lokasi_data = lokasi_data,
-    pendaftaran_data = pendaftaran_data,
+    kategori_data = fresh_kategori_data,
+    periode_data = fresh_periode_data,
+    lokasi_data = fresh_lokasi_data,
+    pendaftaran_data = fresh_pendaftaran_data,
     selected_location = NULL,
     show_registration_modal = FALSE,
     show_photo_modal = FALSE,
     show_admin_modal = FALSE,
     selected_photo_location = NULL,
-    last_registration_id = if(nrow(pendaftaran_data) > 0) max(pendaftaran_data$id_pendaftaran, na.rm = TRUE) else 0,
+    last_registration_id = if(nrow(fresh_pendaftaran_data) > 0) max(fresh_pendaftaran_data$id_pendaftaran, na.rm = TRUE) else 0,
     last_update_timestamp = Sys.time()  # ENHANCED: Add timestamp for real-time updates
   )
   
@@ -178,7 +184,9 @@ server <- function(input, output, session) {
     tryCatch({
       if (is.null(session$userData$selected_kategori_id)) {
         # ADD NEW KATEGORI
-        new_id <- max(values$kategori_data$id_kategori) + 1
+        # Handle case where existing IDs might be invalid (e.g., -Inf)
+        valid_ids <- values$kategori_data$id_kategori[is.finite(values$kategori_data$id_kategori)]
+        new_id <- if(length(valid_ids) > 0) max(valid_ids) + 1 else 1
         new_kategori <- data.frame(
           id_kategori = new_id,
           nama_kategori = input$kategori_nama,
@@ -191,6 +199,7 @@ server <- function(input, output, session) {
         )
         values$kategori_data <- rbind(values$kategori_data, new_kategori)
         save_kategori_data(values$kategori_data)
+        values$kategori_data <- readRDS("data/kategori_data.rds")
         showNotification("Kategori baru berhasil ditambahkan!", type = "message")
       } else {
         # EDIT EXISTING KATEGORI
@@ -202,6 +211,7 @@ server <- function(input, output, session) {
           values$kategori_data[row_idx, "isu_strategis"] <- ifelse(is.null(input$kategori_isu) || input$kategori_isu == "", 
                                                                    "Tidak ada isu strategis", input$kategori_isu)
           save_kategori_data(values$kategori_data)
+          values$kategori_data <- readRDS("data/kategori_data.rds")
           showNotification("Kategori berhasil diperbarui!", type = "message")
         }
       }
@@ -260,6 +270,7 @@ server <- function(input, output, session) {
       kategori_name <- values$kategori_data[selected_row, "nama_kategori"]
       values$kategori_data <- values$kategori_data[-selected_row, ]
       save_kategori_data(values$kategori_data)
+      values$kategori_data <- readRDS("data/kategori_data.rds")
       
       # Update choices in other components
       updateSelectInput(session, "lokasi_kategori", choices = values$kategori_data$nama_kategori)
@@ -368,6 +379,7 @@ server <- function(input, output, session) {
         )
         values$periode_data <- rbind(values$periode_data, new_periode)
         save_periode_data(values$periode_data)
+        values$periode_data <- readRDS("data/periode_data.rds")
         showNotification("Periode baru berhasil ditambahkan!", type = "message")
       } else {
         # EDIT EXISTING PERIODE
@@ -378,6 +390,7 @@ server <- function(input, output, session) {
           values$periode_data[row_idx, "waktu_selesai"] <- input$periode_selesai
           values$periode_data[row_idx, "status"] <- input$periode_status
           save_periode_data(values$periode_data)
+          values$periode_data <- readRDS("data/periode_data.rds")
           showNotification("Periode berhasil diperbarui!", type = "message")
         }
       }
@@ -421,6 +434,7 @@ server <- function(input, output, session) {
       periode_name <- values$periode_data[selected_row, "nama_periode"]
       values$periode_data <- values$periode_data[-selected_row, ]
       save_periode_data(values$periode_data)
+      values$periode_data <- readRDS("data/periode_data.rds")
       
       showNotification(paste("Periode '", periode_name, "' berhasil dihapus!"), type = "message")
       removeModal()
@@ -489,7 +503,11 @@ server <- function(input, output, session) {
       updateTextInput(session, "lokasi_map", value = ifelse("map_lokasi" %in% names(lokasi), lokasi$map_lokasi, ""))
       updateSelectInput(session, "lokasi_kategori", selected = lokasi$kategori_lokasi)
       updateTextAreaInput(session, "lokasi_isu", value = lokasi$isu_strategis)
-      updateSelectInput(session, "lokasi_prodi", selected = lokasi$program_studi[[1]])
+      # Safely extract program_studi - it's stored as a list of character vectors
+      current_prodi <- if(!is.null(lokasi$program_studi[[1]])) {
+        as.character(lokasi$program_studi[[1]])
+      } else character(0)
+      updateSelectInput(session, "lokasi_prodi", selected = current_prodi)
       updateNumericInput(session, "lokasi_kuota", value = lokasi$kuota_mahasiswa)
       
       # Store the selected ID for editing
@@ -530,7 +548,9 @@ server <- function(input, output, session) {
       
       if (is.null(session$userData$selected_lokasi_id)) {
         # ADD NEW LOKASI
-        new_id <- max(values$lokasi_data$id_lokasi) + 1
+        # Generate safe new ID
+        valid_ids <- values$lokasi_data$id_lokasi[is.finite(values$lokasi_data$id_lokasi)]
+        new_id <- if(length(valid_ids) > 0) max(valid_ids) + 1 else 1
         new_lokasi <- data.frame(
           id_lokasi = new_id,
           nama_lokasi = input$lokasi_nama,
@@ -549,10 +569,10 @@ server <- function(input, output, session) {
           stringsAsFactors = FALSE
         )
         
-        # Add program studi
+        # Add program studi - handle multiple selection properly
         selected_prodi <- input$lokasi_prodi
-        if (is.null(selected_prodi) || length(selected_prodi) == 0) {
-          selected_prodi <- c("Informatika")
+        if (is.null(selected_prodi)) {
+          selected_prodi <- character(0)  # Allow empty selection
         }
         new_lokasi$program_studi <- list(selected_prodi)
         # Ensure foto_url_list is always a proper list, even if empty
@@ -576,6 +596,10 @@ server <- function(input, output, session) {
           values$lokasi_data <- rbind(values$lokasi_data, new_lokasi)
         })
         save_lokasi_data(values$lokasi_data)
+        
+        # PRODUCTION FIX: Reload data from file to ensure consistency
+        values$lokasi_data <- readRDS("data/lokasi_data.rds")
+        
         showNotification("Lokasi baru berhasil ditambahkan!", type = "message")
         
       } else {
@@ -599,15 +623,34 @@ server <- function(input, output, session) {
           }
           values$lokasi_data[row_idx, "kuota_mahasiswa"] <- ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota)
           
-          # Update program studi
+          # Update program studi - handle multiple selection properly
           selected_prodi <- input$lokasi_prodi
-          if (is.null(selected_prodi) || length(selected_prodi) == 0) {
-            selected_prodi <- values$lokasi_data[row_idx, "program_studi"][[1]]
+          if (is.null(selected_prodi)) {
+            selected_prodi <- character(0)  # Allow empty selection
           }
-          values$lokasi_data[row_idx, "program_studi"] <- list(selected_prodi)
           
+          # Ensure program_studi column exists and is properly structured
+          if(!"program_studi" %in% names(values$lokasi_data)) {
+            values$lokasi_data$program_studi <- replicate(nrow(values$lokasi_data), list(), simplify = FALSE)
+          }
+          
+          # Properly assign the list structure - ensure it's a list column
+          if(!is.list(values$lokasi_data$program_studi)) {
+            values$lokasi_data$program_studi <- replicate(nrow(values$lokasi_data), list(), simplify = FALSE)
+          }
+          
+          # Update the specific row with the selected programs
+          values$lokasi_data$program_studi[[row_idx]] <- as.character(selected_prodi)
+          
+          # Force save with structure validation
           save_lokasi_data(values$lokasi_data)
-          showNotification("Lokasi berhasil diperbarui!", type = "message")
+          
+          # PRODUCTION FIX: Reload data from file to ensure consistency
+          values$lokasi_data <- readRDS("data/lokasi_data.rds")
+          
+          # Debug notification showing what was saved
+          prodi_text <- if(length(selected_prodi) > 0) paste(selected_prodi, collapse=", ") else "Kosong"
+          showNotification(paste0("Lokasi berhasil diperbarui! Program Studi: ", prodi_text), type = "message")
         }
       }
       
@@ -654,6 +697,9 @@ server <- function(input, output, session) {
       lokasi_name <- values$lokasi_data[selected_row, "nama_lokasi"]
       values$lokasi_data <- values$lokasi_data[-selected_row, ]
       save_lokasi_data(values$lokasi_data)
+      
+      # PRODUCTION FIX: Reload data from file to ensure consistency
+      values$lokasi_data <- readRDS("data/lokasi_data.rds")
       
       showNotification(paste("Lokasi '", lokasi_name, "' berhasil dihapus!"), type = "message")
       removeModal()
@@ -726,7 +772,17 @@ server <- function(input, output, session) {
       
       # Create compact vertical card
       div(class = "location-card card-modern",
-          img(src = loc$foto_lokasi, class = "location-image", alt = loc$nama_lokasi),
+          # Image with fallback for missing files
+          if(!is.null(loc$foto_lokasi) && loc$foto_lokasi != "" && loc$foto_lokasi != "foto1.jpg" && loc$foto_lokasi != "foto2.jpg") {
+            img(src = loc$foto_lokasi, class = "location-image", alt = loc$nama_lokasi, 
+                onerror = "this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA2MEw5MCA3NUw5MCA5MEw3NSA5MEw2MCA3NUw2MCA2MEg3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Rm90byBUaWRhayBUZXJzZWRpYTwvdGV4dD4KPC9zdmc+';")
+          } else {
+            div(class = "location-image no-image", 
+                div(style = "padding: 40px; text-align: center; color: #9CA3AF; background: #F3F4F6;",
+                    icon("image", style = "font-size: 24px; margin-bottom: 10px;"),
+                    br(),
+                    "Foto Tidak Tersedia"))
+          },
           
           div(class = "location-content",
               # Header section
@@ -744,7 +800,19 @@ server <- function(input, output, session) {
                       span(class = "meta-tag", "🎯 ", 
                            # Truncate strategic issues for compact display
                            if(nchar(loc$isu_strategis) > 12) paste0(substr(loc$isu_strategis, 1, 12), "...") else loc$isu_strategis),
-                      span(class = "meta-tag", "📚 ", length(loc$program_studi[[1]])),
+                      span(class = "meta-tag", 
+                           if(!is.null(loc$program_studi[[1]]) && length(loc$program_studi[[1]]) > 0) {
+                             prodi_list <- loc$program_studi[[1]]
+                             if(length(prodi_list) == 1) {
+                               paste0("📚 ", prodi_list[1])
+                             } else if(length(prodi_list) <= 3) {
+                               paste0("📚 ", paste(prodi_list, collapse=", "))
+                             } else {
+                               paste0("📚 ", paste(prodi_list[1:2], collapse=", "), " + ", length(prodi_list)-2, " lainnya")
+                             }
+                           } else {
+                             "📚 Belum diset"
+                           }),
                       span(class = "meta-tag", "👥 ", quota_status$total_quota)
                   )
               ),
@@ -809,7 +877,11 @@ server <- function(input, output, session) {
       if (nrow(lokasi) > 0) {
         values$selected_location <- lokasi[1, ]
         values$show_registration_modal <- TRUE
-        updateSelectInput(session, "reg_program_studi", choices = lokasi$program_studi[[1]])
+        # Safely extract program_studi choices - it's stored as list of character vectors
+        prodi_choices <- if(!is.null(lokasi$program_studi[[1]])) {
+          as.character(lokasi$program_studi[[1]])
+        } else character(0)
+        updateSelectInput(session, "reg_program_studi", choices = prodi_choices)
         
         # FIXED: Additional delay to ensure file inputs are properly cleared
         shinyjs::delay(200, {
@@ -1005,7 +1077,12 @@ server <- function(input, output, session) {
         "📍 Lokasi:", values$selected_location$nama_lokasi, "\n",
         "🏷️ Kategori:", values$selected_location$kategori_lokasi, "\n", 
         "👥 Kuota:", values$selected_location$kuota_mahasiswa, "mahasiswa\n",
-        "📚 Program Studi yang dapat mendaftar:", paste(values$selected_location$program_studi[[1]], collapse = ", ")
+        "📚 Program Studi yang dapat mendaftar:", {
+          prodi_list <- if(!is.null(values$selected_location$program_studi[[1]])) {
+            values$selected_location$program_studi[[1]]
+          } else character(0)
+          paste(prodi_list, collapse = ", ")
+        }
       )
     } else {
       "Tidak ada lokasi yang dipilih"
@@ -1332,7 +1409,11 @@ server <- function(input, output, session) {
       if (nrow(lokasi) > 0) {
         values$selected_location <- lokasi[1, ]
         values$show_registration_modal <- TRUE
-        updateSelectInput(session, "reg_program_studi", choices = lokasi$program_studi[[1]])
+        # Safely extract program_studi choices - it's stored as list of character vectors
+        prodi_choices <- if(!is.null(lokasi$program_studi[[1]])) {
+          as.character(lokasi$program_studi[[1]])
+        } else character(0)
+        updateSelectInput(session, "reg_program_studi", choices = prodi_choices)
         
         # FIXED: Force file input clearing after location selection
         shinyjs::delay(100, {
@@ -1547,151 +1628,6 @@ output$login_error_message <- renderText({
   "Username atau password salah!"
 })
 
-# ================================
-# 3. MASTER DATA - KATEGORI MODULE
-# ================================
-
-# Kategori table display
-output$kategori_table <- DT::renderDataTable({
-  display_data <- values$kategori_data[, c("id_kategori", "nama_kategori", "deskripsi_kategori", "isu_strategis")]
-  
-  DT::datatable(display_data,
-                options = list(
-                  pageLength = 10, 
-                  dom = 'tip',
-                  language = list(
-                    emptyTable = "Tidak ada data kategori",
-                    info = "Menampilkan _START_ sampai _END_ dari _TOTAL_ kategori"
-                  )
-                ),
-                colnames = c("ID", "Nama Kategori", "Deskripsi", "Isu Strategis"),
-                selection = "single",
-                rownames = FALSE)
-})
-
-# Handle kategori table row selection for editing
-observeEvent(input$kategori_table_rows_selected, {
-  if (length(input$kategori_table_rows_selected) > 0) {
-    selected_row <- input$kategori_table_rows_selected
-    kategori <- values$kategori_data[selected_row, ]
-    
-    # Populate form fields
-    updateTextInput(session, "kategori_nama", value = kategori$nama_kategori)
-    updateTextAreaInput(session, "kategori_deskripsi", value = kategori$deskripsi_kategori)
-    updateTextAreaInput(session, "kategori_isu", value = kategori$isu_strategis)
-    
-    # Store the selected ID for editing
-    session$userData$selected_kategori_id <- kategori$id_kategori
-    showNotification("Data kategori dipilih untuk edit", type = "message")
-  }
-})
-
-# Save kategori (Add/Edit)
-observeEvent(input$save_kategori, {
-  req(input$kategori_nama)
-  
-  tryCatch({
-    if (is.null(session$userData$selected_kategori_id)) {
-      # ADD NEW KATEGORI
-      new_id <- max(values$kategori_data$id_kategori) + 1
-      new_kategori <- data.frame(
-        id_kategori = new_id,
-        nama_kategori = input$kategori_nama,
-        deskripsi_kategori = ifelse(is.null(input$kategori_deskripsi) || input$kategori_deskripsi == "", 
-                                    "Tidak ada deskripsi", input$kategori_deskripsi),
-        isu_strategis = ifelse(is.null(input$kategori_isu) || input$kategori_isu == "", 
-                               "Tidak ada isu strategis", input$kategori_isu),
-        timestamp = Sys.time(),
-        stringsAsFactors = FALSE
-      )
-      values$kategori_data <- rbind(values$kategori_data, new_kategori)
-      save_kategori_data(values$kategori_data)
-      showNotification("Kategori baru berhasil ditambahkan!", type = "message")
-    } else {
-      # EDIT EXISTING KATEGORI
-      row_idx <- which(values$kategori_data$id_kategori == session$userData$selected_kategori_id)
-      if(length(row_idx) > 0) {
-        values$kategori_data[row_idx, "nama_kategori"] <- input$kategori_nama
-        values$kategori_data[row_idx, "deskripsi_kategori"] <- ifelse(is.null(input$kategori_deskripsi) || input$kategori_deskripsi == "", 
-                                                                      "Tidak ada deskripsi", input$kategori_deskripsi)
-        values$kategori_data[row_idx, "isu_strategis"] <- ifelse(is.null(input$kategori_isu) || input$kategori_isu == "", 
-                                                                 "Tidak ada isu strategis", input$kategori_isu)
-        save_kategori_data(values$kategori_data)
-        showNotification("Kategori berhasil diperbarui!", type = "message")
-      }
-    }
-    
-    # Update lokasi kategori choices
-    updateSelectInput(session, "lokasi_kategori", choices = values$kategori_data$nama_kategori)
-    
-    # Reset form
-    session$userData$selected_kategori_id <- NULL
-    updateTextInput(session, "kategori_nama", value = "")
-    updateTextAreaInput(session, "kategori_deskripsi", value = "")
-    updateTextAreaInput(session, "kategori_isu", value = "")
-    
-  }, error = function(e) {
-    showNotification(paste("Error:", e$message), type = "error")
-  })
-})
-
-# Delete kategori with validation
-observeEvent(input$delete_kategori, {
-  if (length(input$kategori_table_rows_selected) > 0) {
-    selected_row <- input$kategori_table_rows_selected
-    kategori_id <- values$kategori_data[selected_row, "id_kategori"]
-    kategori_name <- values$kategori_data[selected_row, "nama_kategori"]
-    
-    # Check if kategori is used in lokasi
-    usage_check <- check_category_usage(kategori_id, values$lokasi_data)
-    
-    if (!usage_check$can_delete) {
-      showModal(modalDialog(
-        title = "❌ Tidak Dapat Menghapus",
-        div(class = "alert alert-danger", usage_check$reason),
-        footer = modalButton("OK")
-      ))
-      return()
-    }
-    
-    # Confirm deletion
-    showModal(modalDialog(
-      title = "⚠️ Konfirmasi Hapus",
-      paste("Apakah Anda yakin ingin menghapus kategori '", kategori_name, "'?"),
-      footer = tagList(
-        actionButton("confirm_delete_kategori", "Hapus", class = "btn btn-danger"),
-        modalButton("Batal")
-      )
-    ))
-  } else {
-    showNotification("Pilih kategori yang akan dihapus terlebih dahulu!", type = "warning")
-  }
-})
-
-# Confirm kategori deletion
-observeEvent(input$confirm_delete_kategori, {
-  if (length(input$kategori_table_rows_selected) > 0) {
-    selected_row <- input$kategori_table_rows_selected
-    kategori_name <- values$kategori_data[selected_row, "nama_kategori"]
-    values$kategori_data <- values$kategori_data[-selected_row, ]
-    save_kategori_data(values$kategori_data)
-    
-    # Update choices in other components
-    updateSelectInput(session, "lokasi_kategori", choices = values$kategori_data$nama_kategori)
-    
-    showNotification(paste("Kategori '", kategori_name, "' berhasil dihapus!"), type = "message")
-    removeModal()
-  }
-})
-
-# Reset kategori form
-observeEvent(input$reset_kategori, {
-  session$userData$selected_kategori_id <- NULL
-  updateTextInput(session, "kategori_nama", value = "")
-  updateTextAreaInput(session, "kategori_deskripsi", value = "")
-  updateTextAreaInput(session, "kategori_isu", value = "")
-  showNotification("Form kategori direset", type = "message")
-})
 
 # ================================
 # 4. MASTER DATA - PERIODE MODULE
@@ -1742,313 +1678,6 @@ observeEvent(input$periode_table_rows_selected, {
   }
 })
 
-# Save periode (Add/Edit)
-observeEvent(input$save_periode, {
-  req(input$periode_nama, input$periode_mulai, input$periode_selesai)
-  
-  tryCatch({
-    # Validate dates
-    if (input$periode_mulai >= input$periode_selesai) {
-      showNotification("Tanggal mulai harus lebih awal dari tanggal selesai!", type = "error")
-      return()
-    }
-    
-    # Check for overlapping active periods
-    if (input$periode_status == "Aktif") {
-      overlapping <- values$periode_data[
-        values$periode_data$status == "Aktif" & 
-          !(if(!is.null(session$userData$selected_periode_id)) {
-            values$periode_data$id_periode == session$userData$selected_periode_id
-          } else {
-            FALSE
-          }), ]
-      
-      if (nrow(overlapping) > 0) {
-        showNotification("Tidak boleh ada lebih dari satu periode aktif pada satu waktu!", type = "error")
-        return()
-      }
-    }
-    
-    if (is.null(session$userData$selected_periode_id)) {
-      # ADD NEW PERIODE
-      new_id <- max(values$periode_data$id_periode) + 1
-      new_periode <- data.frame(
-        id_periode = new_id,
-        nama_periode = input$periode_nama,
-        waktu_mulai = input$periode_mulai,
-        waktu_selesai = input$periode_selesai,
-        status = input$periode_status,
-        timestamp = Sys.time(),
-        stringsAsFactors = FALSE
-      )
-      values$periode_data <- rbind(values$periode_data, new_periode)
-      save_periode_data(values$periode_data)
-      showNotification("Periode baru berhasil ditambahkan!", type = "message")
-    } else {
-      # EDIT EXISTING PERIODE
-      row_idx <- which(values$periode_data$id_periode == session$userData$selected_periode_id)
-      if(length(row_idx) > 0) {
-        values$periode_data[row_idx, "nama_periode"] <- input$periode_nama
-        values$periode_data[row_idx, "waktu_mulai"] <- input$periode_mulai
-        values$periode_data[row_idx, "waktu_selesai"] <- input$periode_selesai
-        values$periode_data[row_idx, "status"] <- input$periode_status
-        save_periode_data(values$periode_data)
-        showNotification("Periode berhasil diperbarui!", type = "message")
-      }
-    }
-    
-    # Reset form
-    session$userData$selected_periode_id <- NULL
-    updateTextInput(session, "periode_nama", value = "")
-    updateDateInput(session, "periode_mulai", value = Sys.Date())
-    updateDateInput(session, "periode_selesai", value = Sys.Date() + 30)
-    updateSelectInput(session, "periode_status", selected = "Tidak Aktif")
-    
-  }, error = function(e) {
-    showNotification(paste("Error:", e$message), type = "error")
-  })
-})
-
-# Delete periode
-observeEvent(input$delete_periode, {
-  if (length(input$periode_table_rows_selected) > 0) {
-    selected_row <- input$periode_table_rows_selected
-    periode_name <- values$periode_data[selected_row, "nama_periode"]
-    
-    # Confirm deletion
-    showModal(modalDialog(
-      title = "⚠️ Konfirmasi Hapus",
-      paste("Apakah Anda yakin ingin menghapus periode '", periode_name, "'?"),
-      footer = tagList(
-        actionButton("confirm_delete_periode", "Hapus", class = "btn btn-danger"),
-        modalButton("Batal")
-      )
-    ))
-  } else {
-    showNotification("Pilih periode yang akan dihapus terlebih dahulu!", type = "warning")
-  }
-})
-
-# Confirm periode deletion
-observeEvent(input$confirm_delete_periode, {
-  if (length(input$periode_table_rows_selected) > 0) {
-    selected_row <- input$periode_table_rows_selected
-    periode_name <- values$periode_data[selected_row, "nama_periode"]
-    values$periode_data <- values$periode_data[-selected_row, ]
-    save_periode_data(values$periode_data)
-    
-    showNotification(paste("Periode '", periode_name, "' berhasil dihapus!"), type = "message")
-    removeModal()
-  }
-})
-
-# Reset periode form
-observeEvent(input$reset_periode, {
-  session$userData$selected_periode_id <- NULL
-  updateTextInput(session, "periode_nama", value = "")
-  updateDateInput(session, "periode_mulai", value = Sys.Date())
-  updateDateInput(session, "periode_selesai", value = Sys.Date() + 30)
-  updateSelectInput(session, "periode_status", selected = "Tidak Aktif")
-  showNotification("Form periode direset", type = "message")
-})
-
-# ================================
-# 5. MASTER DATA - LOKASI MODULE
-# ================================
-
-# Update kategori choices when kategori data changes
-observe({
-  updateSelectInput(session, "lokasi_kategori", choices = values$kategori_data$nama_kategori)
-})
-
-# Enhanced lokasi table with quota status
-output$lokasi_table <- DT::renderDataTable({
-  display_lokasi <- values$lokasi_data[, c("id_lokasi", "nama_lokasi", "kategori_lokasi", "kuota_mahasiswa")]
-  
-  # Add quota status information
-  display_lokasi$quota_status <- sapply(display_lokasi$nama_lokasi, function(nama) {
-    status <- get_current_quota_status(nama, values$pendaftaran_data, values$lokasi_data)
-    paste0(status$used_quota, "/", status$total_quota, 
-           " (Tersedia: ", status$available_quota, ")")
-  })
-  
-  display_lokasi$quota_detail <- sapply(display_lokasi$nama_lokasi, function(nama) {
-    status <- get_current_quota_status(nama, values$pendaftaran_data, values$lokasi_data)
-    paste0("Pending: ", status$pending, ", Approved: ", status$approved, ", Rejected: ", status$rejected)
-  })
-  
-  DT::datatable(display_lokasi,
-                options = list(
-                  pageLength = 10, 
-                  dom = 'tip',
-                  language = list(
-                    emptyTable = "Tidak ada data lokasi",
-                    info = "Menampilkan _START_ sampai _END_ dari _TOTAL_ lokasi"
-                  )
-                ),
-                colnames = c("ID", "Nama Lokasi", "Kategori", "Kuota Total", "Status Kuota", "Detail Pendaftar"),
-                selection = "single",
-                rownames = FALSE)
-})
-
-# Handle lokasi table row selection for editing
-observeEvent(input$lokasi_table_rows_selected, {
-  if (length(input$lokasi_table_rows_selected) > 0) {
-    selected_row <- input$lokasi_table_rows_selected
-    lokasi <- values$lokasi_data[selected_row, ]
-    
-    # Populate form fields
-    updateTextInput(session, "lokasi_nama", value = lokasi$nama_lokasi)
-    updateTextAreaInput(session, "lokasi_deskripsi", value = lokasi$deskripsi_lokasi)
-    updateSelectInput(session, "lokasi_kategori", selected = lokasi$kategori_lokasi)
-    updateTextAreaInput(session, "lokasi_isu", value = lokasi$isu_strategis)
-    updateSelectInput(session, "lokasi_prodi", selected = lokasi$program_studi[[1]])
-    updateNumericInput(session, "lokasi_kuota", value = lokasi$kuota_mahasiswa)
-    
-    # Store the selected ID for editing
-    session$userData$selected_lokasi_id <- lokasi$id_lokasi
-    showNotification("Data lokasi dipilih untuk edit", type = "message")
-  }
-})
-
-# Save lokasi (Add/Edit)
-observeEvent(input$save_lokasi, {
-  req(input$lokasi_nama, input$lokasi_kategori)
-  
-  tryCatch({
-    # Handle file upload for foto_lokasi
-    foto_url <- "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=250&fit=crop"
-    
-    if (!is.null(input$lokasi_foto)) {
-      # Create images directory if it doesn't exist
-      if (!dir.exists("www/images")) dir.create("www/images", recursive = TRUE)
-      
-      # Generate unique filename
-      file_ext <- tools::file_ext(input$lokasi_foto$name)
-      new_filename <- paste0("lokasi_", Sys.time() %>% as.numeric(), ".", file_ext)
-      foto_path <- file.path("www/images", new_filename)
-      
-      # Copy uploaded file
-      file.copy(input$lokasi_foto$datapath, foto_path)
-      foto_url <- paste0("images/", new_filename)
-    }
-    
-    if (is.null(session$userData$selected_lokasi_id)) {
-      # ADD NEW LOKASI
-      new_id <- max(values$lokasi_data$id_lokasi) + 1
-      new_lokasi <- data.frame(
-        id_lokasi = new_id,
-        nama_lokasi = input$lokasi_nama,
-        deskripsi_lokasi = ifelse(is.null(input$lokasi_deskripsi) || input$lokasi_deskripsi == "", 
-                                  "Tidak ada deskripsi", input$lokasi_deskripsi),
-        kategori_lokasi = input$lokasi_kategori,
-        isu_strategis = ifelse(is.null(input$lokasi_isu) || input$lokasi_isu == "", 
-                               "Tidak ada isu strategis", input$lokasi_isu),
-        kuota_mahasiswa = ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota),
-        foto_lokasi = foto_url,
-        timestamp = Sys.time(),
-        stringsAsFactors = FALSE
-      )
-      
-      # Add program studi
-      selected_prodi <- input$lokasi_prodi
-      if (is.null(selected_prodi) || length(selected_prodi) == 0) {
-        selected_prodi <- c("Informatika")
-      }
-      new_lokasi$program_studi <- list(selected_prodi)
-      
-      values$lokasi_data <- rbind(values$lokasi_data, new_lokasi)
-      save_lokasi_data(values$lokasi_data)
-      showNotification("Lokasi baru berhasil ditambahkan!", type = "message")
-      
-    } else {
-      # EDIT EXISTING LOKASI
-      row_idx <- which(values$lokasi_data$id_lokasi == session$userData$selected_lokasi_id)
-      if(length(row_idx) > 0) {
-        values$lokasi_data[row_idx, "nama_lokasi"] <- input$lokasi_nama
-        values$lokasi_data[row_idx, "deskripsi_lokasi"] <- ifelse(is.null(input$lokasi_deskripsi) || input$lokasi_deskripsi == "", 
-                                                                  "Tidak ada deskripsi", input$lokasi_deskripsi)
-        values$lokasi_data[row_idx, "kategori_lokasi"] <- input$lokasi_kategori
-        values$lokasi_data[row_idx, "isu_strategis"] <- ifelse(is.null(input$lokasi_isu) || input$lokasi_isu == "", 
-                                                               "Tidak ada isu strategis", input$lokasi_isu)
-        # Update foto only if new file uploaded
-        if (!is.null(input$lokasi_foto)) {
-          values$lokasi_data[row_idx, "foto_lokasi"] <- foto_url
-        }
-        values$lokasi_data[row_idx, "kuota_mahasiswa"] <- ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota)
-        
-        # Update program studi
-        selected_prodi <- input$lokasi_prodi
-        if (is.null(selected_prodi) || length(selected_prodi) == 0) {
-          selected_prodi <- values$lokasi_data[row_idx, "program_studi"][[1]]
-        }
-        values$lokasi_data[row_idx, "program_studi"] <- list(selected_prodi)
-        
-        save_lokasi_data(values$lokasi_data)
-        showNotification("Lokasi berhasil diperbarui!", type = "message")
-      }
-    }
-    
-    # Reset form
-    session$userData$selected_lokasi_id <- NULL
-    updateTextInput(session, "lokasi_nama", value = "")
-    updateTextAreaInput(session, "lokasi_deskripsi", value = "")
-    updateTextAreaInput(session, "lokasi_alamat", value = "")
-    updateTextInput(session, "lokasi_map", value = "")
-    updateSelectInput(session, "lokasi_kategori", selected = character(0))
-    updateTextAreaInput(session, "lokasi_isu", value = "")
-    updateSelectInput(session, "lokasi_prodi", selected = character(0))
-    updateNumericInput(session, "lokasi_kuota", value = 5)
-    
-  }, error = function(e) {
-    showNotification(paste("Error:", e$message), type = "error")
-  })
-})
-
-# Delete lokasi
-observeEvent(input$delete_lokasi, {
-  if (length(input$lokasi_table_rows_selected) > 0) {
-    selected_row <- input$lokasi_table_rows_selected
-    lokasi_name <- values$lokasi_data[selected_row, "nama_lokasi"]
-    
-    # Confirm deletion
-    showModal(modalDialog(
-      title = "⚠️ Konfirmasi Hapus",
-      paste("Apakah Anda yakin ingin menghapus lokasi '", lokasi_name, "'?"),
-      footer = tagList(
-        actionButton("confirm_delete_lokasi", "Hapus", class = "btn btn-danger"),
-        modalButton("Batal")
-      )
-    ))
-  } else {
-    showNotification("Pilih lokasi yang akan dihapus terlebih dahulu!", type = "warning")
-  }
-})
-
-# Confirm lokasi deletion
-observeEvent(input$confirm_delete_lokasi, {
-  if (length(input$lokasi_table_rows_selected) > 0) {
-    selected_row <- input$lokasi_table_rows_selected
-    lokasi_name <- values$lokasi_data[selected_row, "nama_lokasi"]
-    values$lokasi_data <- values$lokasi_data[-selected_row, ]
-    save_lokasi_data(values$lokasi_data)
-    
-    showNotification(paste("Lokasi '", lokasi_name, "' berhasil dihapus!"), type = "message")
-    removeModal()
-  }
-})
-
-# Reset lokasi form
-observeEvent(input$reset_lokasi, {
-  session$userData$selected_lokasi_id <- NULL
-  updateTextInput(session, "lokasi_nama", value = "")
-  updateTextAreaInput(session, "lokasi_deskripsi", value = "")
-  updateSelectInput(session, "lokasi_kategori", selected = character(0))
-  updateTextAreaInput(session, "lokasi_isu", value = "")
-  updateSelectInput(session, "lokasi_prodi", selected = character(0))
-  updateNumericInput(session, "lokasi_kuota", value = 5)
-  showNotification("Form lokasi direset", type = "message")
-})
 
 # ================================
 # 6. STUDENT INTERFACE MODULE
@@ -2102,7 +1731,17 @@ output$locations_grid <- renderUI({
     
     # Create enhanced card
     div(class = "location-card", style = "margin-bottom: 20px;",
-        img(src = loc$foto_lokasi, class = "location-image", alt = loc$nama_lokasi),
+        # Image with fallback for missing files
+        if(!is.null(loc$foto_lokasi) && loc$foto_lokasi != "" && loc$foto_lokasi != "foto1.jpg" && loc$foto_lokasi != "foto2.jpg") {
+          img(src = loc$foto_lokasi, class = "location-image", alt = loc$nama_lokasi, 
+              onerror = "this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA2MEw5MCA3NUw5MCA5MEw3NSA5MEw2MCA3NUw2MCA2MEg3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Rm90byBUaWRhayBUZXJzZWRpYTwvdGV4dD4KPC9zdmc+';")
+        } else {
+          div(class = "location-image no-image", 
+              div(style = "padding: 40px; text-align: center; color: #9CA3AF; background: #F3F4F6;",
+                  icon("image", style = "font-size: 24px; margin-bottom: 10px;"),
+                  br(),
+                  "Foto Tidak Tersedia"))
+        },
         
         div(class = "location-content",
             div(class = "location-title", loc$nama_lokasi),
@@ -2138,7 +1777,12 @@ output$locations_grid <- renderUI({
                 ),
                 div(class = "location-prodi",
                     strong("📚 Program Studi: "), 
-                    paste(loc$program_studi[[1]], collapse = ", ")
+                    {
+                      prodi_list <- if(!is.null(loc$program_studi[[1]])) {
+                        loc$program_studi[[1]]
+                      } else character(0)
+                      paste(prodi_list, collapse = ", ")
+                    }
                 ),
                 div(class = "location-quota",
                     strong("👥 Kuota: "), paste(quota_status$total_quota, "mahasiswa"),
@@ -2196,7 +1840,11 @@ observeEvent(input$selected_location_id, {
   if (nrow(lokasi) > 0) {
     values$selected_location <- lokasi[1, ]
     values$show_registration_modal <- TRUE
-    updateSelectInput(session, "reg_program_studi", choices = lokasi$program_studi[[1]])
+    # Safely extract program_studi choices - it's stored as list of character vectors
+    prodi_choices <- if(!is.null(lokasi$program_studi[[1]])) {
+      as.character(lokasi$program_studi[[1]])
+    } else character(0)
+    updateSelectInput(session, "reg_program_studi", choices = prodi_choices)
   }
 }, ignoreInit = TRUE)
 
@@ -2219,7 +1867,12 @@ output$selected_location_info <- renderText({
       "📍 Lokasi:", values$selected_location$nama_lokasi, "\n",
       "🏷️ Kategori:", values$selected_location$kategori_lokasi, "\n", 
       "👥 Kuota:", values$selected_location$kuota_mahasiswa, "mahasiswa\n",
-      "📚 Program Studi yang dapat mendaftar:", paste(values$selected_location$program_studi[[1]], collapse = ", ")
+      "📚 Program Studi yang dapat mendaftar:", {
+        prodi_list <- if(!is.null(values$selected_location$program_studi[[1]])) {
+          values$selected_location$program_studi[[1]]
+        } else character(0)
+        paste(prodi_list, collapse = ", ")
+      }
     )
   }
 })
@@ -2426,6 +2079,7 @@ observeEvent(input$submit_registration, {
     tryCatch({
       if (!dir.exists("data")) dir.create("data", recursive = TRUE)
       save_pendaftaran_data(values$pendaftaran_data)
+      values$pendaftaran_data <- readRDS("data/pendaftaran_data.rds")
     }, error = function(e) {
       showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
     })
@@ -3053,6 +2707,7 @@ observeEvent(input$approve_registration_id, {
       
       tryCatch({
         save_pendaftaran_data(values$pendaftaran_data)
+        values$pendaftaran_data <- readRDS("data/pendaftaran_data.rds")
       }, error = function(e) {
         showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
       })
@@ -3153,6 +2808,7 @@ observeEvent(input$confirm_reject, {
       
       tryCatch({
         save_pendaftaran_data(values$pendaftaran_data)
+        values$pendaftaran_data <- readRDS("data/pendaftaran_data.rds")
       }, error = function(e) {
         showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
       })

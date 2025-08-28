@@ -30,8 +30,8 @@ PROGRAM_STUDI_OPTIONS <- c(
 
 # Admin credentials
 admin_credentials <- data.frame(
-  username = "admin",
-  password = "admin123",
+  username = "adminlabsos",
+  password = "labsosunu4869",
   stringsAsFactors = FALSE
 )
 
@@ -53,6 +53,7 @@ source("fn/check_registration_eligibility.R")
 source("fn/get_current_quota_status.R")
 source("fn/validate_documents.R")
 source("fn/search_registrations.R")
+source("fn/cleanup_old_backups.R")
 
 # ================================
 # 6. INITIALIZE DATA
