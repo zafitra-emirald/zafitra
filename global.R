@@ -3,12 +3,22 @@
 # ================================
 # 1. LOAD REQUIRED LIBRARIES
 # ================================
-library(shiny)
-library(shinydashboard)
-library(DT)
-library(dplyr)
-library(shinyjs)
-library(mongolite)
+
+# Function to install and load required packages
+install_and_load <- function(package) {
+  if (!require(package, character.only = TRUE)) {
+    install.packages(package, dependencies = TRUE)
+    library(package, character.only = TRUE)
+  }
+}
+
+# List of required packages
+required_packages <- c("shiny", "shinydashboard", "DT", "dplyr", "shinyjs", "mongolite")
+
+# Install and load all required packages
+for (pkg in required_packages) {
+  install_and_load(pkg)
+}
 
 # ================================
 # 2. GLOBAL CONSTANTS
