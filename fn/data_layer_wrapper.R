@@ -23,7 +23,7 @@ initialize_data_layer <- function() {
       cat("Successfully initialized MongoDB data layer\n")
       return("mongodb")
     }, error = function(e) {
-      cat("MongoDB initialization failed:", e$message, "\n")
+      cat("MongoDB initialization failed:", as.character(e$message), "\n")
       cat("Falling back to RDS file system\n")
       USE_MONGODB <<- FALSE
       load_or_create_data()
@@ -43,7 +43,7 @@ save_kategori_data_wrapper <- function(data) {
     tryCatch({
       save_kategori_data_mongo(data)
     }, error = function(e) {
-      cat("MongoDB save failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB save failed, falling back to RDS:", as.character(e$message), "\n")
       save_kategori_data(data)
     })
   } else {
@@ -56,7 +56,7 @@ save_periode_data_wrapper <- function(data) {
     tryCatch({
       save_periode_data_mongo(data)
     }, error = function(e) {
-      cat("MongoDB save failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB save failed, falling back to RDS:", as.character(e$message), "\n")
       save_periode_data(data)
     })
   } else {
@@ -69,7 +69,7 @@ save_lokasi_data_wrapper <- function(data) {
     tryCatch({
       save_lokasi_data_mongo(data)
     }, error = function(e) {
-      cat("MongoDB save failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB save failed, falling back to RDS:", as.character(e$message), "\n")
       save_lokasi_data(data)
     })
   } else {
@@ -82,7 +82,7 @@ save_pendaftaran_data_wrapper <- function(data) {
     tryCatch({
       save_pendaftaran_data_mongo(data)
     }, error = function(e) {
-      cat("MongoDB save failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB save failed, falling back to RDS:", as.character(e$message), "\n")
       save_pendaftaran_data(data)
     })
   } else {
@@ -118,7 +118,7 @@ refresh_kategori_data <- function() {
         ))
       }
     }, error = function(e) {
-      cat("MongoDB refresh failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB refresh failed, falling back to RDS:", as.character(e$message), "\n")
       return(if(file.exists("data/kategori_data.rds")) readRDS("data/kategori_data.rds") else kategori_data)
     })
   } else {
@@ -155,7 +155,7 @@ refresh_periode_data <- function() {
         ))
       }
     }, error = function(e) {
-      cat("MongoDB refresh failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB refresh failed, falling back to RDS:", as.character(e$message), "\n")
       return(if(file.exists("data/periode_data.rds")) readRDS("data/periode_data.rds") else periode_data)
     })
   } else {
@@ -195,9 +195,9 @@ refresh_lokasi_data <- function() {
           kategori_lokasi = as.character(lokasi_data_mongo$kategori_lokasi),
           isu_strategis = as.character(lokasi_data_mongo$isu_strategis),
           kuota_mahasiswa = as.integer(lokasi_data_mongo$kuota_mahasiswa),
-          alamat_lokasi = as.character(lokasi_data_mongo$alamat_lokasi %||% ""),
-          map_lokasi = as.character(lokasi_data_mongo$map_lokasi %||% ""),
-          foto_lokasi = as.character(lokasi_data_mongo$foto_lokasi %||% ""),
+          alamat_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$alamat_lokasi), "", lokasi_data_mongo$alamat_lokasi)),
+          map_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$map_lokasi), "", lokasi_data_mongo$map_lokasi)),
+          foto_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$foto_lokasi), "", lokasi_data_mongo$foto_lokasi)),
           timestamp = as.POSIXct(lokasi_data_mongo$timestamp),
           stringsAsFactors = FALSE
         )
@@ -217,7 +217,7 @@ refresh_lokasi_data <- function() {
         return(refreshed_data)
       }
     }, error = function(e) {
-      cat("MongoDB refresh failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB refresh failed, falling back to RDS:", as.character(e$message), "\n")
       return(if(file.exists("data/lokasi_data.rds")) readRDS("data/lokasi_data.rds") else lokasi_data)
     })
   } else {
@@ -259,18 +259,18 @@ refresh_pendaftaran_data <- function() {
           program_studi = as.character(pendaftaran_data_mongo$program_studi),
           kontak = as.character(pendaftaran_data_mongo$kontak),
           pilihan_lokasi = as.character(pendaftaran_data_mongo$pilihan_lokasi),
-          letter_of_interest_path = as.character(pendaftaran_data_mongo$letter_of_interest_path %||% ""),
-          cv_mahasiswa_path = as.character(pendaftaran_data_mongo$cv_mahasiswa_path %||% ""),
-          form_rekomendasi_prodi_path = as.character(pendaftaran_data_mongo$form_rekomendasi_prodi_path %||% ""),
-          form_komitmen_mahasiswa_path = as.character(pendaftaran_data_mongo$form_komitmen_mahasiswa_path %||% ""),
-          transkrip_nilai_path = as.character(pendaftaran_data_mongo$transkrip_nilai_path %||% ""),
-          status_pendaftaran = as.character(pendaftaran_data_mongo$status_pendaftaran %||% "Pending"),
-          alasan_penolakan = as.character(pendaftaran_data_mongo$alasan_penolakan %||% ""),
+          letter_of_interest_path = as.character(ifelse(is.null(pendaftaran_data_mongo$letter_of_interest_path), "", pendaftaran_data_mongo$letter_of_interest_path)),
+          cv_mahasiswa_path = as.character(ifelse(is.null(pendaftaran_data_mongo$cv_mahasiswa_path), "", pendaftaran_data_mongo$cv_mahasiswa_path)),
+          form_rekomendasi_prodi_path = as.character(ifelse(is.null(pendaftaran_data_mongo$form_rekomendasi_prodi_path), "", pendaftaran_data_mongo$form_rekomendasi_prodi_path)),
+          form_komitmen_mahasiswa_path = as.character(ifelse(is.null(pendaftaran_data_mongo$form_komitmen_mahasiswa_path), "", pendaftaran_data_mongo$form_komitmen_mahasiswa_path)),
+          transkrip_nilai_path = as.character(ifelse(is.null(pendaftaran_data_mongo$transkrip_nilai_path), "", pendaftaran_data_mongo$transkrip_nilai_path)),
+          status_pendaftaran = as.character(ifelse(is.null(pendaftaran_data_mongo$status_pendaftaran), "Pending", pendaftaran_data_mongo$status_pendaftaran)),
+          alasan_penolakan = as.character(ifelse(is.null(pendaftaran_data_mongo$alasan_penolakan), "", pendaftaran_data_mongo$alasan_penolakan)),
           stringsAsFactors = FALSE
         ))
       }
     }, error = function(e) {
-      cat("MongoDB refresh failed, falling back to RDS:", e$message, "\n")
+      cat("MongoDB refresh failed, falling back to RDS:", as.character(e$message), "\n")
       return(if(file.exists("data/pendaftaran_data.rds")) readRDS("data/pendaftaran_data.rds") else pendaftaran_data)
     })
   } else {

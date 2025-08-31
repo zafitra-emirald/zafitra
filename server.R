@@ -628,7 +628,7 @@ server <- function(input, output, session) {
           # Update foto only if new file uploaded
           if (!is.null(input$lokasi_foto)) {
             values$lokasi_data[row_idx, "foto_lokasi"] <- foto_url
-            values$lokasi_data$foto_lokasi_list[[row_idx]] <- foto_url_list
+            values$lokasi_data$foto_lokasi_list[[row_idx]] <- list(foto_url_list)
           }
           values$lokasi_data[row_idx, "kuota_mahasiswa"] <- ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota)
           
@@ -935,70 +935,163 @@ server <- function(input, output, session) {
     location <- values$selected_photo_location
     photos <- NULL
     
-    # Extract photos with proper nested list handling
-    if("foto_lokasi_list" %in% names(location) && !is.null(location$foto_lokasi_list[[1]])) {
-      photos <- unlist(location$foto_lokasi_list[[1]])
+    # Extract photos with robust handling for different data structures
+    if("foto_lokasi_list" %in% names(location) && !is.null(location$foto_lokasi_list)) {
+      tryCatch({
+        # Try nested list first (consistent structure)
+        if(is.list(location$foto_lokasi_list[[1]]) && length(location$foto_lokasi_list[[1]]) > 0) {
+          photos <- unlist(location$foto_lokasi_list[[1]])
+        } else if(length(location$foto_lokasi_list) > 0) {
+          # Fallback for direct list structure
+          photos <- unlist(location$foto_lokasi_list)
+        }
+      }, error = function(e) {
+        # Last resort: try to extract any photo data
+        photos <- unlist(location$foto_lokasi_list)
+      })
     }
     
     if(!is.null(photos) && length(photos) > 0) {
-      # Generate photo gallery with improved photo viewing
-      photo_divs <- lapply(seq_along(photos), function(i) {
-        photo <- photos[i]
-        div(style = "display: inline-block; margin: 10px; text-align: center;",
-            div(style = "position: relative; display: inline-block;",
-                tags$img(src = photo, 
-                         id = paste0("photo_", i),
-                         style = "max-width: 300px; max-height: 200px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s ease;",
-                         onclick = paste0("
-                           var img = document.getElementById('photo_", i, "');
-                           if(img.style.transform && img.style.transform.includes('scale')) {
-                             img.style.transform = '';
-                             img.style.zIndex = '';
-                           } else {
-                             // Reset all other images first
-                             var allPhotos = document.querySelectorAll('[id^=\\\"photo_\\\"]');
-                             allPhotos.forEach(function(p) { p.style.transform = ''; p.style.zIndex = ''; });
-                             // Scale this image
-                             img.style.transform = 'scale(1.8)';
-                             img.style.zIndex = '1000';
-                             img.style.position = 'relative';
-                           }
-                           event.stopPropagation();
-                         "),
-                         onmouseover = "this.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';",
-                         onmouseout = "this.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';")),
-            div(style = "margin-top: 8px; font-size: 0.8em; color: #666;", "Klik untuk perbesar/kecilkan"),
-            div(style = "font-size: 0.7em; color: #999; margin-top: 2px;", paste0("Foto ", i, " dari ", length(photos)))
-        )
-      })
-      
-      return(div(style = "text-align: center;", photo_divs))
+      if(length(photos) == 1) {
+        # Single photo: Show enlarged by default, click to zoom further
+        photo <- photos[1]
+        return(div(style = "text-align: center; padding: 15px; max-width: 100%; max-height: 100%; overflow: hidden;",
+                   div(style = "position: relative; display: inline-block; border-radius: 12px; overflow: visible;",
+                       tags$img(src = photo, 
+                                id = "single_photo_display",
+                                style = "width: auto; height: auto; max-width: 70vw; max-height: 55vh; min-width: 400px; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; display: block; box-shadow: 0 8px 25px rgba(0,0,0,0.3);",
+                                onclick = "
+                                  console.log('Single photo clicked');
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  event.stopImmediatePropagation();
+                                  
+                                  var img = document.getElementById('single_photo_display');
+                                  if(!img) {
+                                    console.log('Single photo image not found');
+                                    return false;
+                                  }
+                                  
+                                  if(img.style.transform && img.style.transform.includes('scale')) {
+                                    console.log('Resetting single photo zoom');
+                                    // Reset to enlarged default
+                                    img.style.transform = '';
+                                    img.style.zIndex = '';
+                                    img.style.position = '';
+                                    img.style.maxWidth = '70vw';
+                                    img.style.maxHeight = '55vh';
+                                  } else {
+                                    console.log('Zooming single photo further');
+                                    // Zoom further but stay within modal bounds
+                                    img.style.transform = 'scale(1.3)';
+                                    img.style.zIndex = '10001';
+                                    img.style.position = 'relative';
+                                    img.style.maxWidth = '85vw';
+                                    img.style.maxHeight = '65vh';
+                                  }
+                                  return false;
+                                ",
+                                onmouseover = "this.style.filter = 'brightness(1.05)';",
+                                onmouseout = "this.style.filter = 'brightness(1)';")
+                   ),
+                   div(style = "margin-top: 15px; font-size: 0.9em; color: #666; font-weight: 500;", "Klik untuk zoom lebih jauh")
+        ))
+      } else {
+        # Multiple photos: Show grid layout with click to zoom
+        photo_elements <- lapply(seq_along(photos), function(i) {
+          photo <- photos[i]
+          div(style = "display: inline-block; margin: 10px; vertical-align: top; text-align: center;",
+              div(style = "position: relative; border-radius: 8px; overflow: hidden;",
+                  tags$img(src = photo, 
+                           id = paste0("photo_", i),
+                           style = "width: 220px; height: 160px; object-fit: cover; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; display: block; box-shadow: 0 4px 8px rgba(0,0,0,0.2);",
+                           onclick = paste0("
+                             event.stopPropagation();
+                             var img = document.getElementById('photo_", i, "');
+                             var isZoomed = img.classList.contains('zoomed');
+                             
+                             if(isZoomed) {
+                               // Reset zoom
+                               img.classList.remove('zoomed');
+                               img.style.transform = '';
+                               img.style.zIndex = '';
+                               img.style.position = '';
+                               img.style.width = '220px';
+                               img.style.height = '160px';
+                               img.style.objectFit = 'cover';
+                             } else {
+                               // Reset all other photos
+                               var allPhotos = document.querySelectorAll('[id^=\\\"photo_\\\"]');
+                               allPhotos.forEach(function(p) {
+                                 p.classList.remove('zoomed');
+                                 p.style.transform = '';
+                                 p.style.zIndex = '';
+                                 p.style.position = '';
+                                 p.style.width = '220px';
+                                 p.style.height = '160px';
+                                 p.style.objectFit = 'cover';
+                               });
+                               // Zoom this photo
+                               img.classList.add('zoomed');
+                               img.style.transform = 'scale(2.5)';
+                               img.style.zIndex = '1000';
+                               img.style.position = 'relative';
+                               img.style.width = 'auto';
+                               img.style.height = 'auto';
+                               img.style.objectFit = 'contain';
+                             }
+                           "),
+                           onmouseover = "if(!this.classList.contains('zoomed')) this.style.filter = 'brightness(1.1)';",
+                           onmouseout = "if(!this.classList.contains('zoomed')) this.style.filter = 'brightness(1)';")),
+              div(style = "margin-top: 8px; font-size: 0.8em; color: #666;", "Klik untuk perbesar"),
+              div(style = "font-size: 0.7em; color: #999; margin-top: 2px;", paste0("Foto ", i, " dari ", length(photos)))
+          )
+        })
+        
+        return(div(style = "text-align: center; padding: 10px;", photo_elements))
+      }
     } else {
       return(div(style = "text-align: center; padding: 40px;",
                  p("Tidak ada foto tersedia untuk lokasi ini")))
     }
   })
   
-  # Photo button click handler
+  # Photo button click handler using reactive approach
   observe({
-    # Get all input names that match photo button pattern
-    all_inputs <- reactiveValuesToList(input)
-    photo_buttons <- names(all_inputs)[grepl("^view_photos_", names(all_inputs))]
+    req(values$lokasi_data)
     
-    for(button_name in photo_buttons) {
-      if(!is.null(input[[button_name]]) && input[[button_name]] > 0) {
-        # Extract location ID
+    # Monitor all photo button inputs
+    all_inputs <- names(input)
+    photo_button_inputs <- all_inputs[grepl("^view_photos_", all_inputs)]
+    
+    for(button_name in photo_button_inputs) {
+      button_value <- input[[button_name]]
+      if(!is.null(button_value) && button_value > 0) {
+        # Extract location ID from button name
         location_id <- as.numeric(gsub("view_photos_", "", button_name))
         
-        # Find and set the location
-        location <- values$lokasi_data[values$lokasi_data$id_lokasi == location_id, ]
-        if(nrow(location) > 0) {
+        # Find the location
+        location_row <- values$lokasi_data[values$lokasi_data$id_lokasi == location_id, ]
+        if(nrow(location_row) > 0) {
+          cat("=== PHOTO BUTTON CLICKED ===", "\n")
+          cat("Button:", as.character(button_name), "Value:", as.character(button_value), "Location ID:", as.character(location_id), "\n")
+          
+          # Reset and open modal with proper state management
           isolate({
-            values$selected_photo_location <- location[1, ]
+            # Force immediate state reset
+            if(values$show_photo_modal) {
+              values$show_photo_modal <- FALSE
+              values$selected_photo_location <- NULL
+            }
+            
+            # Set new state
+            values$selected_photo_location <- location_row[1, ]
             values$show_photo_modal <- TRUE
           })
+          
+          cat("Photo modal opened for location:", as.character(location_row$nama_lokasi[1]), "\n")
+          break
         }
-        break  # Only handle one button click at a time
       }
     }
   })
@@ -1012,28 +1105,58 @@ server <- function(input, output, session) {
     }
   })
   
-  # Close photo modal with multiple trigger methods
+  # Close photo modal with complete state cleanup
   observeEvent(input$close_photo_modal, {
     cat("=== CLOSE PHOTO MODAL TRIGGERED (input method) ===", "\n")
-    cat("Button click count:", input$close_photo_modal, "\n")
     
+    # Complete modal cleanup
     values$show_photo_modal <- FALSE
     values$selected_photo_location <- NULL
     
     # Reset any scaled images and remove ESC listener
     runjs("
-      console.log('Resetting photos and removing ESC listener');
+      console.log('Complete photo modal cleanup');
       var photos = document.querySelectorAll('[id^=\\\"photo_\\\"]');
       photos.forEach(function(photo) {
         photo.style.transform = '';
         photo.style.zIndex = '';
+        photo.style.position = '';
+        photo.style.width = '';
+        photo.style.height = '';
+        photo.style.objectFit = '';
+        photo.style.maxWidth = '';
+        photo.style.maxHeight = '';
       });
       // Remove ESC key listener
       if(window.photoModalEscHandler) {
         document.removeEventListener('keydown', window.photoModalEscHandler);
         window.photoModalEscHandler = null;
       }
-      console.log('Photo modal cleanup complete');
+      console.log('Photo modal completely reset');
+    ")
+  }, ignoreNULL = TRUE, ignoreInit = TRUE)
+  
+  # Close button handler (× button)
+  observeEvent(input$close_photo_modal_btn, {
+    cat("=== CLOSE PHOTO MODAL TRIGGERED (× button) ===", "\n")
+    
+    values$show_photo_modal <- FALSE
+    values$selected_photo_location <- NULL
+    
+    # Complete cleanup
+    runjs("
+      console.log('× button close triggered');
+      var photos = document.querySelectorAll('[id^=\\\"photo_\\\"]');
+      photos.forEach(function(photo) {
+        photo.style.transform = '';
+        photo.style.zIndex = '';
+        photo.style.position = '';
+        photo.style.width = '';
+        photo.style.height = '';
+        photo.style.objectFit = '';
+        photo.style.maxWidth = '';
+        photo.style.maxHeight = '';
+      });
     ")
   }, ignoreNULL = TRUE, ignoreInit = TRUE)
   
@@ -1051,6 +1174,12 @@ server <- function(input, output, session) {
       photos.forEach(function(photo) {
         photo.style.transform = '';
         photo.style.zIndex = '';
+        photo.style.position = '';
+        photo.style.width = '';
+        photo.style.height = '';
+        photo.style.objectFit = '';
+        photo.style.maxWidth = '';
+        photo.style.maxHeight = '';
       });
       // Remove ESC key listener
       if(window.photoModalEscHandler) {
@@ -1779,7 +1908,9 @@ output$locations_grid <- renderUI({
                              "🗺️ Lihat di Maps")
                     } else NULL,
                     # Photos button
-                    if("foto_lokasi_list" %in% names(loc) && !is.null(loc$foto_lokasi_list[[1]]) && length(loc$foto_lokasi_list[[1]]) > 0) {
+                    if("foto_lokasi_list" %in% names(loc) && !is.null(loc$foto_lokasi_list) && 
+                       ((is.list(loc$foto_lokasi_list[[1]]) && length(loc$foto_lokasi_list[[1]]) > 0) || 
+                        (!is.list(loc$foto_lokasi_list[[1]]) && length(loc$foto_lokasi_list) > 0))) {
                       actionButton(paste0("view_photos_", loc$id_lokasi), "📸 Lihat Foto",
                                    class = "btn btn-sm btn-outline-info",
                                    style = "font-size: 0.8em; padding: 4px 8px;")

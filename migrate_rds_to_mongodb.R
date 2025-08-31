@@ -46,7 +46,7 @@ migrate_rds_to_mongodb <- function() {
       cat("✓ Kategori data migrated:", nrow(kategori_data), "rows\n")
     }, error = function(e) {
       migration_results$kategori <- list(success = FALSE, error = e$message)
-      cat("✗ Kategori migration failed:", e$message, "\n")
+      cat("✗ Kategori migration failed:", as.character(e$message), "\n")
     })
   } else {
     cat("- No kategori data to migrate\n")
@@ -76,7 +76,7 @@ migrate_rds_to_mongodb <- function() {
       cat("✓ Periode data migrated:", nrow(periode_data), "rows\n")
     }, error = function(e) {
       migration_results$periode <- list(success = FALSE, error = e$message)
-      cat("✗ Periode migration failed:", e$message, "\n")
+      cat("✗ Periode migration failed:", as.character(e$message), "\n")
     })
   } else {
     cat("- No periode data to migrate\n")
@@ -120,7 +120,7 @@ migrate_rds_to_mongodb <- function() {
       cat("✓ Lokasi data migrated:", nrow(lokasi_data), "rows\n")
     }, error = function(e) {
       migration_results$lokasi <- list(success = FALSE, error = e$message)
-      cat("✗ Lokasi migration failed:", e$message, "\n")
+      cat("✗ Lokasi migration failed:", as.character(e$message), "\n")
     })
   } else {
     cat("- No lokasi data to migrate\n")
@@ -165,7 +165,7 @@ migrate_rds_to_mongodb <- function() {
       cat("✓ Pendaftaran data migrated:", nrow(pendaftaran_data), "rows\n")
     }, error = function(e) {
       migration_results$pendaftaran <- list(success = FALSE, error = e$message)
-      cat("✗ Pendaftaran migration failed:", e$message, "\n")
+      cat("✗ Pendaftaran migration failed:", as.character(e$message), "\n")
     })
   } else {
     cat("- No pendaftaran data to migrate\n")

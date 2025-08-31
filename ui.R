@@ -836,7 +836,10 @@ ui <- dashboardPage(
                 column(4,
                        wellPanel(
                          h4("Form Kategori"),
-                         textInput("kategori_nama", "Nama Kategori:", placeholder = "Masukkan nama kategori"),
+                         tags$div(
+                           tags$label("Nama Kategori:", `for` = "kategori_nama"),
+                           tags$input(id = "kategori_nama", type = "text", class = "form-control", placeholder = "Masukkan nama kategori", autocomplete = "off")
+                         ),
                          textAreaInput("kategori_deskripsi", "Deskripsi:", rows = 3, placeholder = "Deskripsi kategori"),
                          textAreaInput("kategori_isu", "Isu Strategis:", rows = 3, placeholder = "Isu strategis yang relevan"),
                          br(),
@@ -867,7 +870,10 @@ ui <- dashboardPage(
                 column(4,
                        wellPanel(
                          h4("Form Periode"),
-                         textInput("periode_nama", "Nama Periode:", placeholder = "Contoh: Semester Genap 2024/2025"),
+                         tags$div(
+                           tags$label("Nama Periode:", `for` = "periode_nama"),
+                           tags$input(id = "periode_nama", type = "text", class = "form-control", placeholder = "Contoh: Semester Genap 2024/2025", autocomplete = "off")
+                         ),
                          dateInput("periode_mulai", "Tanggal Mulai:", value = Sys.Date()),
                          dateInput("periode_selesai", "Tanggal Selesai:", value = Sys.Date() + 30),
                          selectInput("periode_status", "Status:", choices = c("Aktif", "Tidak Aktif"), selected = "Tidak Aktif"),
@@ -899,10 +905,16 @@ ui <- dashboardPage(
                 column(4,
                        wellPanel(
                          h4("Form Lokasi"),
-                         textInput("lokasi_nama", "Nama Lokasi:", placeholder = "Contoh: Desa Tanjungsari"),
+                         tags$div(
+                           tags$label("Nama Lokasi:", `for` = "lokasi_nama"),
+                           tags$input(id = "lokasi_nama", type = "text", class = "form-control", placeholder = "Contoh: Desa Tanjungsari", autocomplete = "off")
+                         ),
                          textAreaInput("lokasi_deskripsi", "Deskripsi:", rows = 2, placeholder = "Deskripsi singkat lokasi"),
                          textAreaInput("lokasi_alamat", "Alamat Lokasi:", rows = 2, placeholder = "Alamat lengkap lokasi"),
-                         textInput("lokasi_map", "Link Google Maps:", placeholder = "https://maps.google.com/?q=..."),
+                         tags$div(
+                           tags$label("Link Google Maps:", `for` = "lokasi_map"),
+                           tags$input(id = "lokasi_map", type = "text", class = "form-control", placeholder = "https://maps.google.com/?q=...", autocomplete = "off")
+                         ),
                          selectInput("lokasi_kategori", "Kategori:", choices = NULL),
                          textAreaInput("lokasi_isu", "Isu Strategis:", rows = 2, placeholder = "Isu strategis yang akan ditangani"),
                          fileInput("lokasi_foto", "Upload Foto Lokasi (Multiple):", 
@@ -1176,15 +1188,17 @@ ui <- dashboardPage(
           div(style = "padding: 2rem;",
               div(style = "margin-bottom: 1.5rem;",
                   tags$label("👤 Username", style = "display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary); font-size: 1.1rem;"),
-                  textInput("admin_username", "", 
-                            placeholder = "Masukkan username admin",
-                            value = "")
+                  tags$div(
+                    tags$input(id = "admin_username", type = "text", class = "form-control", 
+                               placeholder = "Masukkan username admin", autocomplete = "username")
+                  )
               ),
               div(style = "margin-bottom: 1.5rem;",
                   tags$label("🔒 Password", style = "display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary); font-size: 1.1rem;"),
-                  passwordInput("admin_password", "", 
-                                placeholder = "Masukkan password",
-                                value = "")
+                  tags$div(
+                    tags$input(id = "admin_password", type = "password", class = "form-control", 
+                               placeholder = "Masukkan password", autocomplete = "current-password")
+                  )
               ),
               conditionalPanel(
                 condition = "output.login_error",
@@ -1207,20 +1221,16 @@ ui <- dashboardPage(
       condition = "output.show_photo_modal",
       div(
         id = "photo_gallery_modal",
-        style = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10001; overflow-y: auto; cursor: pointer;",
+        style = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 99999; overflow: auto; cursor: pointer;",
         onclick = "
-          if(event.target === this || event.target.id === 'photo_gallery_modal') { 
-            console.log('Background clicked - closing modal'); 
+          console.log('Modal background clicked, target:', event.target.id, 'current:', this.id);
+          if(event.target === this && event.target.id === 'photo_gallery_modal') { 
+            console.log('Confirmed background click - closing modal'); 
             Shiny.setInputValue('close_photo_modal_custom', Math.random(), {priority: 'event'});
-            // Fallback method
-            setTimeout(function() {
-              var modal = document.getElementById('photo_gallery_modal');
-              if(modal) modal.style.display = 'none';
-            }, 100);
           }
         ",
         div(
-          style = "position: relative; margin: 20px auto; background: white; padding: 0; border-radius: 15px; max-width: 1000px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); cursor: default;",
+          style = "position: relative; margin: 20px auto; background: white; padding: 0; border-radius: 15px; max-width: 1200px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); cursor: default; overflow: visible;",
           onclick = "event.stopPropagation();",
           
           # Modal Header
@@ -1250,7 +1260,7 @@ ui <- dashboardPage(
           ),
           
           # Modal Body
-          div(style = "padding: 20px; max-height: 70vh; overflow-y: auto;",
+          div(style = "padding: 20px; max-height: 75vh; overflow-y: auto; text-align: center; position: relative;",
               uiOutput("photo_gallery_content")),
               
           # Add instruction text

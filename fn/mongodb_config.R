@@ -6,10 +6,10 @@ library(mongolite)
 # MongoDB Configuration
 get_mongodb_config <- function() {
   # Get environment variables with fallback defaults
-  username <- Sys.getenv("MONGODB_USERNAME", "labsos")
-  password <- Sys.getenv("MONGODB_PASSWORD", "T5CmgVtU2mV4K01t")
-  host <- Sys.getenv("MONGODB_HOST", "cluster0.ejeivru.mongodb.net")
-  database <- Sys.getenv("MONGODB_DATABASE", "labsos")
+  username <- Sys.getenv("MONGODB_USERNAME", "zafitraem_db_user")
+  password <- Sys.getenv("MONGODB_PASSWORD", "WL7Ya3Q8aOgwwPvM")
+  host <- Sys.getenv("MONGODB_HOST", "cluster0.ccqv2dn.mongodb.net")
+  database <- Sys.getenv("MONGODB_DATABASE", "labsos-v1")
   
   # Build connection string
   connection_string <- paste0("mongodb+srv://", username, ":", password, "@", host, "/", database, "?retryWrites=true&w=majority")

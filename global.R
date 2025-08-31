@@ -96,6 +96,12 @@ source("fn/backup_stubs.R")
 # 6. INITIALIZE DATA
 # ================================
 
+# Clear any conflicting MongoDB environment variables to ensure correct database usage
+Sys.unsetenv("MONGODB_USERNAME")
+Sys.unsetenv("MONGODB_PASSWORD") 
+Sys.unsetenv("MONGODB_HOST")
+Sys.unsetenv("MONGODB_DATABASE")
+
 # Load or create initial data when global.R is sourced
 # Initialize data layer with MongoDB/RDS fallback
 data_layer_result <- initialize_data_layer()

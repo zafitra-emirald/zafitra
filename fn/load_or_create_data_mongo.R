@@ -119,9 +119,9 @@ load_or_create_data_mongo <- function() {
         kategori_lokasi = as.character(lokasi_data_mongo$kategori_lokasi),
         isu_strategis = as.character(lokasi_data_mongo$isu_strategis),
         kuota_mahasiswa = as.integer(lokasi_data_mongo$kuota_mahasiswa),
-        alamat_lokasi = as.character(lokasi_data_mongo$alamat_lokasi %||% ""),
-        map_lokasi = as.character(lokasi_data_mongo$map_lokasi %||% ""),
-        foto_lokasi = as.character(lokasi_data_mongo$foto_lokasi %||% ""),
+        alamat_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$alamat_lokasi), "", lokasi_data_mongo$alamat_lokasi)),
+        map_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$map_lokasi), "", lokasi_data_mongo$map_lokasi)),
+        foto_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$foto_lokasi), "", lokasi_data_mongo$foto_lokasi)),
         timestamp = as.POSIXct(lokasi_data_mongo$timestamp),
         stringsAsFactors = FALSE
       )
@@ -178,13 +178,13 @@ load_or_create_data_mongo <- function() {
         program_studi = as.character(pendaftaran_data_mongo$program_studi),
         kontak = as.character(pendaftaran_data_mongo$kontak),
         pilihan_lokasi = as.character(pendaftaran_data_mongo$pilihan_lokasi),
-        letter_of_interest_path = as.character(pendaftaran_data_mongo$letter_of_interest_path %||% ""),
-        cv_mahasiswa_path = as.character(pendaftaran_data_mongo$cv_mahasiswa_path %||% ""),
-        form_rekomendasi_prodi_path = as.character(pendaftaran_data_mongo$form_rekomendasi_prodi_path %||% ""),
-        form_komitmen_mahasiswa_path = as.character(pendaftaran_data_mongo$form_komitmen_mahasiswa_path %||% ""),
-        transkrip_nilai_path = as.character(pendaftaran_data_mongo$transkrip_nilai_path %||% ""),
-        status_pendaftaran = as.character(pendaftaran_data_mongo$status_pendaftaran %||% "Pending"),
-        alasan_penolakan = as.character(pendaftaran_data_mongo$alasan_penolakan %||% ""),
+        letter_of_interest_path = as.character(ifelse(is.null(pendaftaran_data_mongo$letter_of_interest_path), "", pendaftaran_data_mongo$letter_of_interest_path)),
+        cv_mahasiswa_path = as.character(ifelse(is.null(pendaftaran_data_mongo$cv_mahasiswa_path), "", pendaftaran_data_mongo$cv_mahasiswa_path)),
+        form_rekomendasi_prodi_path = as.character(ifelse(is.null(pendaftaran_data_mongo$form_rekomendasi_prodi_path), "", pendaftaran_data_mongo$form_rekomendasi_prodi_path)),
+        form_komitmen_mahasiswa_path = as.character(ifelse(is.null(pendaftaran_data_mongo$form_komitmen_mahasiswa_path), "", pendaftaran_data_mongo$form_komitmen_mahasiswa_path)),
+        transkrip_nilai_path = as.character(ifelse(is.null(pendaftaran_data_mongo$transkrip_nilai_path), "", pendaftaran_data_mongo$transkrip_nilai_path)),
+        status_pendaftaran = as.character(ifelse(is.null(pendaftaran_data_mongo$status_pendaftaran), "Pending", pendaftaran_data_mongo$status_pendaftaran)),
+        alasan_penolakan = as.character(ifelse(is.null(pendaftaran_data_mongo$alasan_penolakan), "", pendaftaran_data_mongo$alasan_penolakan)),
         stringsAsFactors = FALSE
       )
     }
