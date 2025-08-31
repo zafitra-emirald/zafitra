@@ -810,18 +810,22 @@ server <- function(input, output, session) {
                            # Truncate strategic issues for compact display
                            if(nchar(loc$isu_strategis) > 12) paste0(substr(loc$isu_strategis, 1, 12), "...") else loc$isu_strategis),
                       span(class = "meta-tag", 
-                           if(!is.null(loc$program_studi[[1]]) && length(loc$program_studi[[1]]) > 0) {
-                             prodi_list <- loc$program_studi[[1]]
-                             if(length(prodi_list) == 1) {
-                               paste0("📚 ", prodi_list[1])
-                             } else if(length(prodi_list) <= 3) {
-                               paste0("📚 ", paste(prodi_list, collapse=", "))
+                           tryCatch({
+                             if(!is.null(loc$program_studi) && is.list(loc$program_studi) && 
+                                length(loc$program_studi) > 0 && !is.null(loc$program_studi[[1]]) && 
+                                length(loc$program_studi[[1]]) > 0) {
+                               prodi_list <- as.character(loc$program_studi[[1]])
+                               if(length(prodi_list) == 1) {
+                                 paste0("📚 ", prodi_list[1])
+                               } else if(length(prodi_list) <= 3) {
+                                 paste0("📚 ", paste(prodi_list, collapse=", "))
+                               } else {
+                                 paste0("📚 ", paste(prodi_list[1:2], collapse=", "), " + ", length(prodi_list)-2, " lainnya")
+                               }
                              } else {
-                               paste0("📚 ", paste(prodi_list[1:2], collapse=", "), " + ", length(prodi_list)-2, " lainnya")
+                               "📚 Belum diset"
                              }
-                           } else {
-                             "📚 Belum diset"
-                           }),
+                           }, error = function(e) "📚 Belum diset")),
                       span(class = "meta-tag", "👥 ", quota_status$total_quota)
                   )
               ),
