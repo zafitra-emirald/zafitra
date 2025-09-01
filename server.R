@@ -845,16 +845,26 @@ server <- function(input, output, session) {
       
       # Create compact vertical card
       div(class = "location-card card-modern",
-          # Image with fallback for missing files
-          if(!is.null(loc$foto_lokasi) && loc$foto_lokasi != "" && loc$foto_lokasi != "foto1.jpg" && loc$foto_lokasi != "foto2.jpg") {
-            img(src = loc$foto_lokasi, class = "location-image", alt = loc$nama_lokasi, 
-                onerror = "this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA2MEw5MCA3NUw5MCA5MEw3NSA5MEw2MCA3NUw2MCA2MEg3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Rm90byBUaWRhayBUZXJzZWRpYTwvdGV4dD4KPC9zdmc+';")
-          } else {
-            div(class = "location-image no-image", 
-                div(style = "padding: 40px; text-align: center; color: #9CA3AF; background: #F3F4F6;",
-                    icon("image", style = "font-size: 24px; margin-bottom: 10px;"),
-                    br(),
-                    "Foto Tidak Tersedia"))
+          # Image with fallback - use first photo from foto_lokasi_list if available
+          {
+            # Get first photo from foto_lokasi_list as primary source
+            thumbnail_src <- NULL
+            if("foto_lokasi_list" %in% names(loc) && !is.null(loc$foto_lokasi_list) && length(unlist(loc$foto_lokasi_list)) > 0) {
+              thumbnail_src <- unlist(loc$foto_lokasi_list)[1]
+            } else if(!is.null(loc$foto_lokasi) && loc$foto_lokasi != "" && loc$foto_lokasi != "foto1.jpg" && loc$foto_lokasi != "foto2.jpg") {
+              thumbnail_src <- loc$foto_lokasi
+            }
+            
+            if(!is.null(thumbnail_src) && thumbnail_src != "") {
+              img(src = thumbnail_src, class = "location-image", alt = loc$nama_lokasi, 
+                  onerror = "this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA2MEw5MCA3NUw5MCA5MEw3NSA5MEw2MCA3NUw2MCA2MEg3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Rm90byBUaWRhayBUZXJzZWRpYTwvdGV4dD4KPC9zdmc+';")
+            } else {
+              div(class = "location-image no-image", 
+                  div(style = "padding: 40px; text-align: center; color: #9CA3AF; background: #F3F4F6;",
+                      icon("image", style = "font-size: 24px; margin-bottom: 10px;"),
+                      br(),
+                      "Foto Tidak Tersedia"))
+            }
           },
           
           div(class = "location-content",
@@ -1981,16 +1991,26 @@ output$locations_registration <- renderUI({
     
     # Create enhanced card
     div(class = "location-card", style = "margin-bottom: 20px;",
-        # Image with fallback for missing files
-        if(!is.null(loc$foto_lokasi) && loc$foto_lokasi != "" && loc$foto_lokasi != "foto1.jpg" && loc$foto_lokasi != "foto2.jpg") {
-          img(src = loc$foto_lokasi, class = "location-image", alt = loc$nama_lokasi, 
-              onerror = "this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA2MEw5MCA3NUw5MCA5MEw3NSA5MEw2MCA3NUw2MCA2MEg3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Rm90byBUaWRhayBUZXJzZWRpYTwvdGV4dD4KPC9zdmc+';")
-        } else {
-          div(class = "location-image no-image", 
-              div(style = "padding: 40px; text-align: center; color: #9CA3AF; background: #F3F4F6;",
-                  icon("image", style = "font-size: 24px; margin-bottom: 10px;"),
-                  br(),
-                  "Foto Tidak Tersedia"))
+        # Image with fallback - use first photo from foto_lokasi_list if available
+        {
+          # Get first photo from foto_lokasi_list as primary source
+          thumbnail_src <- NULL
+          if("foto_lokasi_list" %in% names(loc) && !is.null(loc$foto_lokasi_list) && length(unlist(loc$foto_lokasi_list)) > 0) {
+            thumbnail_src <- unlist(loc$foto_lokasi_list)[1]
+          } else if(!is.null(loc$foto_lokasi) && loc$foto_lokasi != "" && loc$foto_lokasi != "foto1.jpg" && loc$foto_lokasi != "foto2.jpg") {
+            thumbnail_src <- loc$foto_lokasi
+          }
+          
+          if(!is.null(thumbnail_src) && thumbnail_src != "") {
+            img(src = thumbnail_src, class = "location-image", alt = loc$nama_lokasi, 
+                onerror = "this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik03NSA2MEw5MCA3NUw5MCA5MEw3NSA5MEw2MCA3NUw2MCA2MEg3NVoiIGZpbGw9IiM5Q0EzQUYiLz4KPHRleHQgeD0iMTAwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlDQTNBRiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Rm90byBUaWRhayBUZXJzZWRpYTwvdGV4dD4KPC9zdmc+';")
+          } else {
+            div(class = "location-image no-image", 
+                div(style = "padding: 40px; text-align: center; color: #9CA3AF; background: #F3F4F6;",
+                    icon("image", style = "font-size: 24px; margin-bottom: 10px;"),
+                    br(),
+                    "Foto Tidak Tersedia"))
+          }
         },
         
         div(class = "location-content",
