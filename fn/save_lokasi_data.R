@@ -6,7 +6,7 @@ save_lokasi_data <- function(data) {
   
   # Validate required columns exist
   required_cols <- c("id_lokasi", "nama_lokasi", "deskripsi_lokasi", "kategori_lokasi", 
-                     "isu_strategis", "kuota_mahasiswa", "timestamp")
+                     "isu_strategis", "kuota_mahasiswa", "alamat_lokasi", "map_lokasi", "timestamp")
   missing_cols <- required_cols[!required_cols %in% names(data)]
   if(length(missing_cols) > 0) {
     stop(paste("Missing required columns:", paste(missing_cols, collapse=", ")))

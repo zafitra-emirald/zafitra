@@ -7,7 +7,7 @@ save_lokasi_data_mongo <- function(data) {
   
   # Validate required columns exist
   required_cols <- c("id_lokasi", "nama_lokasi", "deskripsi_lokasi", "kategori_lokasi", 
-                     "isu_strategis", "kuota_mahasiswa", "timestamp")
+                     "isu_strategis", "kuota_mahasiswa", "alamat_lokasi", "map_lokasi", "timestamp")
   missing_cols <- required_cols[!required_cols %in% names(data)]
   if(length(missing_cols) > 0) {
     stop(paste("SAFETY ABORT: Missing required columns:", paste(missing_cols, collapse=", ")))
@@ -34,12 +34,22 @@ save_lokasi_data_mongo <- function(data) {
       # Ensure timestamp is properly formatted
       mongo_data$timestamp <- as.character(mongo_data$timestamp)
       
-      # Handle optional columns with default values
+      # Handle optional columns with default values and proper data type conversion
       if(!"alamat_lokasi" %in% names(mongo_data)) {
-        mongo_data$alamat_lokasi <- ""
+        mongo_data$alamat_lokasi <- rep("", nrow(mongo_data))
+        cat("DEBUG: Added missing alamat_lokasi column\n")
+      } else {
+        # Ensure alamat_lokasi is character and handle NA/NULL values
+        mongo_data$alamat_lokasi <- as.character(ifelse(is.na(mongo_data$alamat_lokasi) | is.null(mongo_data$alamat_lokasi), "", mongo_data$alamat_lokasi))
+        cat("DEBUG: alamat_lokasi values being saved:", paste(mongo_data$alamat_lokasi, collapse=", "), "\n")
       }
       if(!"map_lokasi" %in% names(mongo_data)) {
-        mongo_data$map_lokasi <- ""
+        mongo_data$map_lokasi <- rep("", nrow(mongo_data))
+        cat("DEBUG: Added missing map_lokasi column\n")
+      } else {
+        # Ensure map_lokasi is character and handle NA/NULL values  
+        mongo_data$map_lokasi <- as.character(ifelse(is.na(mongo_data$map_lokasi) | is.null(mongo_data$map_lokasi), "", mongo_data$map_lokasi))
+        cat("DEBUG: map_lokasi values being saved:", paste(mongo_data$map_lokasi, collapse=", "), "\n")
       }
       if(!"foto_lokasi" %in% names(mongo_data)) {
         mongo_data$foto_lokasi <- ""
@@ -106,6 +116,27 @@ save_lokasi_data_mongo <- function(data) {
       if(!all(data$id_lokasi %in% test_read$id_lokasi) || !all(test_read$id_lokasi %in% data$id_lokasi)) {
         lokasi_conn$disconnect()
         stop(paste("Lokasi ID verification failed. Some IDs don't match between data and database"))
+      }
+      
+      # Verify alamat_lokasi and map_lokasi fields are properly saved
+      for(i in 1:nrow(data)) {
+        saved_row <- test_read[test_read$id_lokasi == data$id_lokasi[i], ]
+        if(nrow(saved_row) == 1) {
+          # Check alamat_lokasi
+          if("alamat_lokasi" %in% names(data) && !is.na(data$alamat_lokasi[i])) {
+            if(is.na(saved_row$alamat_lokasi) || saved_row$alamat_lokasi != data$alamat_lokasi[i]) {
+              lokasi_conn$disconnect()
+              stop(paste("alamat_lokasi verification failed for lokasi ID:", data$id_lokasi[i]))
+            }
+          }
+          # Check map_lokasi
+          if("map_lokasi" %in% names(data) && !is.na(data$map_lokasi[i])) {
+            if(is.na(saved_row$map_lokasi) || saved_row$map_lokasi != data$map_lokasi[i]) {
+              lokasi_conn$disconnect()
+              stop(paste("map_lokasi verification failed for lokasi ID:", data$id_lokasi[i]))
+            }
+          }
+        }
       }
     }
     

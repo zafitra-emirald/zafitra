@@ -7,7 +7,7 @@ save_single_lokasi_mongo <- function(lokasi_data) {
   
   # Validate required columns exist
   required_cols <- c("id_lokasi", "nama_lokasi", "deskripsi_lokasi", "kategori_lokasi", 
-                     "isu_strategis", "kuota_mahasiswa", "timestamp")
+                     "isu_strategis", "kuota_mahasiswa", "alamat_lokasi", "map_lokasi", "timestamp")
   missing_cols <- required_cols[!required_cols %in% names(lokasi_data)]
   if(length(missing_cols) > 0) {
     stop(paste("SAFETY ABORT: Missing required columns:", paste(missing_cols, collapse=", ")))
@@ -81,6 +81,20 @@ save_single_lokasi_mongo <- function(lokasi_data) {
     if(test_read$nama_lokasi != doc$nama_lokasi) {
       lokasi_conn$disconnect()
       stop(paste("Name verification failed for lokasi ID:", doc$id_lokasi))
+    }
+    
+    # Verify alamat_lokasi and map_lokasi fields are properly saved
+    if("alamat_lokasi" %in% names(doc) && !is.na(doc$alamat_lokasi)) {
+      if(is.na(test_read$alamat_lokasi) || test_read$alamat_lokasi != doc$alamat_lokasi) {
+        lokasi_conn$disconnect()
+        stop(paste("alamat_lokasi verification failed for lokasi ID:", doc$id_lokasi))
+      }
+    }
+    if("map_lokasi" %in% names(doc) && !is.na(doc$map_lokasi)) {
+      if(is.na(test_read$map_lokasi) || test_read$map_lokasi != doc$map_lokasi) {
+        lokasi_conn$disconnect()
+        stop(paste("map_lokasi verification failed for lokasi ID:", doc$id_lokasi))
+      }
     }
     
     lokasi_conn$disconnect()

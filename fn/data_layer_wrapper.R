@@ -220,8 +220,8 @@ refresh_lokasi_data <- function() {
           kategori_lokasi = as.character(lokasi_data_mongo$kategori_lokasi),
           isu_strategis = as.character(lokasi_data_mongo$isu_strategis),
           kuota_mahasiswa = as.integer(lokasi_data_mongo$kuota_mahasiswa),
-          alamat_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$alamat_lokasi), "", lokasi_data_mongo$alamat_lokasi)),
-          map_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$map_lokasi), "", lokasi_data_mongo$map_lokasi)),
+          alamat_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$alamat_lokasi) | is.na(lokasi_data_mongo$alamat_lokasi), "", lokasi_data_mongo$alamat_lokasi)),
+          map_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$map_lokasi) | is.na(lokasi_data_mongo$map_lokasi), "", lokasi_data_mongo$map_lokasi)),
           foto_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$foto_lokasi), "", lokasi_data_mongo$foto_lokasi)),
           timestamp = as.POSIXct(as.character(lokasi_data_mongo$timestamp)),
           stringsAsFactors = FALSE

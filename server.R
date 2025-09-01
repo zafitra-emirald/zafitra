@@ -597,7 +597,17 @@ server <- function(input, output, session) {
         new_lokasi$foto_lokasi_list <- list(if(length(foto_url_list) > 0) foto_url_list else list())
         
         # Ensure column order matches existing data structure
+        # First ensure values$lokasi_data has all required columns
+        if(!"alamat_lokasi" %in% names(values$lokasi_data)) {
+          values$lokasi_data$alamat_lokasi <- rep("", nrow(values$lokasi_data))
+        }
+        if(!"map_lokasi" %in% names(values$lokasi_data)) {
+          values$lokasi_data$map_lokasi <- rep("", nrow(values$lokasi_data))
+        }
+        
         existing_cols <- names(values$lokasi_data)
+        cat("DEBUG: Existing columns:", paste(existing_cols, collapse=", "), "\n")
+        cat("DEBUG: New lokasi columns:", paste(names(new_lokasi), collapse=", "), "\n")
         new_lokasi <- new_lokasi[, existing_cols]
         
         # Robust rbind with error handling
@@ -636,13 +646,28 @@ server <- function(input, output, session) {
         # EDIT EXISTING LOKASI
         row_idx <- which(values$lokasi_data$id_lokasi == session$userData$selected_lokasi_id)
         if(length(row_idx) > 0) {
+          # Ensure alamat_lokasi and map_lokasi columns exist
+          if(!"alamat_lokasi" %in% names(values$lokasi_data)) {
+            values$lokasi_data$alamat_lokasi <- rep("", nrow(values$lokasi_data))
+          }
+          if(!"map_lokasi" %in% names(values$lokasi_data)) {
+            values$lokasi_data$map_lokasi <- rep("", nrow(values$lokasi_data))
+          }
+          
           values$lokasi_data[row_idx, "nama_lokasi"] <- input$lokasi_nama
           values$lokasi_data[row_idx, "deskripsi_lokasi"] <- ifelse(is.null(input$lokasi_deskripsi) || input$lokasi_deskripsi == "", 
                                                                     "Tidak ada deskripsi", input$lokasi_deskripsi)
-          values$lokasi_data[row_idx, "alamat_lokasi"] <- ifelse(is.null(input$lokasi_alamat) || input$lokasi_alamat == "", 
-                                                                 "Alamat belum diisi", input$lokasi_alamat)
-          values$lokasi_data[row_idx, "map_lokasi"] <- ifelse(is.null(input$lokasi_map) || input$lokasi_map == "", 
-                                                             "", input$lokasi_map)
+          # Debug: Print what we're trying to save
+          alamat_value <- ifelse(is.null(input$lokasi_alamat) || input$lokasi_alamat == "", 
+                                "Alamat belum diisi", input$lokasi_alamat)
+          map_value <- ifelse(is.null(input$lokasi_map) || input$lokasi_map == "", 
+                             "", input$lokasi_map)
+          
+          cat("DEBUG: Updating alamat_lokasi to:", alamat_value, "\n")
+          cat("DEBUG: Updating map_lokasi to:", map_value, "\n")
+          
+          values$lokasi_data[row_idx, "alamat_lokasi"] <- alamat_value
+          values$lokasi_data[row_idx, "map_lokasi"] <- map_value
           values$lokasi_data[row_idx, "kategori_lokasi"] <- input$lokasi_kategori
           values$lokasi_data[row_idx, "isu_strategis"] <- ifelse(is.null(input$lokasi_isu) || input$lokasi_isu == "", 
                                                                  "Tidak ada isu strategis", input$lokasi_isu)
@@ -676,16 +701,32 @@ server <- function(input, output, session) {
           values$lokasi_data[row_idx, "timestamp"] <- Sys.time()
           
           # Save data with detailed error handling
+          cat("DEBUG: About to save. Row", row_idx, "alamat_lokasi:", values$lokasi_data[row_idx, "alamat_lokasi"], "\n")
+          cat("DEBUG: About to save. Row", row_idx, "map_lokasi:", values$lokasi_data[row_idx, "map_lokasi"], "\n")
+          
           tryCatch({
             save_lokasi_data_wrapper(values$lokasi_data)
+            cat("DEBUG: Save completed successfully\n")
           }, error = function(e) {
             showNotification(paste("Error saving location data:", e$message), type = "error")
+            cat("DEBUG: Save failed with error:", e$message, "\n")
             return()
           })
           
           # PRODUCTION FIX: Reload data from file to ensure consistency
           tryCatch({
+            old_alamat <- values$lokasi_data[row_idx, "alamat_lokasi"]
+            old_map <- values$lokasi_data[row_idx, "map_lokasi"]
+            
             values$lokasi_data <- refresh_lokasi_data()
+            
+            # Check if values were preserved after refresh
+            new_alamat <- values$lokasi_data[row_idx, "alamat_lokasi"]
+            new_map <- values$lokasi_data[row_idx, "map_lokasi"]
+            
+            cat("DEBUG: After refresh - alamat_lokasi:", new_alamat, "(was:", old_alamat, ")\n")
+            cat("DEBUG: After refresh - map_lokasi:", new_map, "(was:", old_map, ")\n")
+            
           }, error = function(e) {
             showNotification(paste("Error refreshing location data:", e$message), type = "error")
             return()
