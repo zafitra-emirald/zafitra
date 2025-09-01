@@ -649,7 +649,7 @@ server <- function(input, output, session) {
           # Update foto only if new file uploaded
           if (!is.null(input$lokasi_foto)) {
             values$lokasi_data[row_idx, "foto_lokasi"] <- foto_url
-            values$lokasi_data$foto_lokasi_list[[row_idx]] <- list(foto_url_list)
+            values$lokasi_data$foto_lokasi_list[[row_idx]] <- if(length(foto_url_list) > 0) foto_url_list else list()
           }
           values$lokasi_data[row_idx, "kuota_mahasiswa"] <- ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota)
           
@@ -675,7 +675,7 @@ server <- function(input, output, session) {
           # Update timestamp to reflect the edit
           values$lokasi_data[row_idx, "timestamp"] <- Sys.time()
           
-          # Force save with structure validation
+          # Save data with detailed error handling
           tryCatch({
             save_lokasi_data_wrapper(values$lokasi_data)
           }, error = function(e) {

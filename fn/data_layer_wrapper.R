@@ -77,6 +77,31 @@ save_lokasi_data_wrapper <- function(data) {
   }
 }
 
+save_single_lokasi_wrapper <- function(lokasi_row) {
+  if (USE_MONGODB) {
+    tryCatch({
+      save_single_lokasi_mongo(lokasi_row)
+    }, error = function(e) {
+      cat("MongoDB single save failed, falling back to full dataset save:", as.character(e$message), "\n")
+      # Fallback to existing full save approach
+      current_data <- refresh_lokasi_data()
+      row_idx <- which(current_data$id_lokasi == lokasi_row$id_lokasi[1])
+      if(length(row_idx) > 0) {
+        current_data[row_idx, ] <- lokasi_row[1, ]
+        save_lokasi_data(current_data)
+      }
+    })
+  } else {
+    # For RDS, use full dataset approach
+    current_data <- refresh_lokasi_data()
+    row_idx <- which(current_data$id_lokasi == lokasi_row$id_lokasi[1])
+    if(length(row_idx) > 0) {
+      current_data[row_idx, ] <- lokasi_row[1, ]
+      save_lokasi_data(current_data)
+    }
+  }
+}
+
 save_pendaftaran_data_wrapper <- function(data) {
   if (USE_MONGODB) {
     tryCatch({

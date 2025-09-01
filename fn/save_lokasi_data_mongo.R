@@ -68,11 +68,13 @@ save_lokasi_data_mongo <- function(data) {
       if(!"foto_lokasi_list" %in% names(mongo_data)) {
         mongo_data$foto_lokasi_list <- replicate(nrow(mongo_data), list(), simplify = FALSE)
       } else {
-        # Ensure all foto_lokasi_list entries are properly formatted lists
+        # Ensure all foto_lokasi_list entries are properly formatted 
         for(i in 1:nrow(mongo_data)) {
-          if(!is.list(mongo_data$foto_lokasi_list[[i]])) {
+          # Only convert NULL entries to empty list, preserve character vectors and lists
+          if(is.null(mongo_data$foto_lokasi_list[[i]])) {
             mongo_data$foto_lokasi_list[[i]] <- list()
           }
+          # Keep character vectors and existing lists as-is (MongoDB can handle both)
         }
       }
       
