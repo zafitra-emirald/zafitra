@@ -513,9 +513,17 @@ server <- function(input, output, session) {
       updateSelectInput(session, "lokasi_kategori", selected = lokasi$kategori_lokasi)
       updateTextAreaInput(session, "lokasi_isu", value = lokasi$isu_strategis)
       # Safely extract program_studi - it's stored as a list of character vectors
-      current_prodi <- if(!is.null(lokasi$program_studi[[1]])) {
-        as.character(lokasi$program_studi[[1]])
-      } else character(0)
+      current_prodi <- tryCatch({
+        if (!is.null(lokasi$program_studi) && length(lokasi$program_studi) > 0 && 
+            !is.null(lokasi$program_studi[[1]]) && length(lokasi$program_studi[[1]]) > 0) {
+          as.character(lokasi$program_studi[[1]])
+        } else {
+          character(0)
+        }
+      }, error = function(e) {
+        cat("Error extracting program_studi for edit:", e$message, "\n")
+        character(0)
+      })
       updateSelectInput(session, "lokasi_prodi", selected = current_prodi)
       updateNumericInput(session, "lokasi_kuota", value = lokasi$kuota_mahasiswa)
       
@@ -560,6 +568,12 @@ server <- function(input, output, session) {
         # Generate safe new ID
         valid_ids <- values$lokasi_data$id_lokasi[is.finite(values$lokasi_data$id_lokasi)]
         new_id <- if(length(valid_ids) > 0) max(valid_ids) + 1 else 1
+        # Add program studi - handle multiple selection properly
+        selected_prodi <- input$lokasi_prodi
+        if (is.null(selected_prodi)) {
+          selected_prodi <- character(0)  # Allow empty selection
+        }
+        
         new_lokasi <- data.frame(
           id_lokasi = new_id,
           nama_lokasi = input$lokasi_nama,
@@ -569,22 +583,17 @@ server <- function(input, output, session) {
           isu_strategis = ifelse(is.null(input$lokasi_isu) || input$lokasi_isu == "", 
                                  "Tidak ada isu strategis", input$lokasi_isu),
           kuota_mahasiswa = ifelse(is.null(input$lokasi_kuota) || input$lokasi_kuota == 0, 5, input$lokasi_kuota),
-          foto_lokasi = foto_url,
-          timestamp = Sys.time(),
           alamat_lokasi = ifelse(is.null(input$lokasi_alamat) || input$lokasi_alamat == "", 
                                 "Alamat belum diisi", input$lokasi_alamat),
           map_lokasi = ifelse(is.null(input$lokasi_map) || input$lokasi_map == "", 
                              "", input$lokasi_map),
+          foto_lokasi = foto_url,
+          timestamp = Sys.time(),
           stringsAsFactors = FALSE
         )
         
-        # Add program studi - handle multiple selection properly
-        selected_prodi <- input$lokasi_prodi
-        if (is.null(selected_prodi)) {
-          selected_prodi <- character(0)  # Allow empty selection
-        }
+        # Add list columns with proper structure
         new_lokasi$program_studi <- list(selected_prodi)
-        # Ensure foto_url_list is always a proper list, even if empty
         new_lokasi$foto_lokasi_list <- list(if(length(foto_url_list) > 0) foto_url_list else list())
         
         # Ensure column order matches existing data structure
@@ -660,8 +669,11 @@ server <- function(input, output, session) {
             values$lokasi_data$program_studi <- replicate(nrow(values$lokasi_data), list(), simplify = FALSE)
           }
           
-          # Update the specific row with the selected programs
+          # Update the specific row with the selected programs (ensure consistency with add logic)
           values$lokasi_data$program_studi[[row_idx]] <- as.character(selected_prodi)
+          
+          # Update timestamp to reflect the edit
+          values$lokasi_data[row_idx, "timestamp"] <- Sys.time()
           
           # Force save with structure validation
           tryCatch({
@@ -761,6 +773,20 @@ server <- function(input, output, session) {
     updateSelectInput(session, "lokasi_prodi", selected = character(0))
     updateNumericInput(session, "lokasi_kuota", value = 5)
     showNotification("Form lokasi direset", type = "message")
+  })
+  
+  # Add new lokasi - clear form for new entry
+  observeEvent(input$add_new_lokasi, {
+    session$userData$selected_lokasi_id <- NULL
+    updateTextInput(session, "lokasi_nama", value = "")
+    updateTextAreaInput(session, "lokasi_deskripsi", value = "")
+    updateTextAreaInput(session, "lokasi_alamat", value = "")
+    updateTextInput(session, "lokasi_map", value = "")
+    updateSelectInput(session, "lokasi_kategori", selected = character(0))
+    updateTextAreaInput(session, "lokasi_isu", value = "")
+    updateSelectInput(session, "lokasi_prodi", selected = character(0))
+    updateNumericInput(session, "lokasi_kuota", value = 5)
+    showNotification("Form siap untuk lokasi baru", type = "message")
   })
   
   # ================================

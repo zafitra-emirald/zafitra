@@ -122,7 +122,7 @@ load_or_create_data_mongo <- function() {
         alamat_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$alamat_lokasi), "", lokasi_data_mongo$alamat_lokasi)),
         map_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$map_lokasi), "", lokasi_data_mongo$map_lokasi)),
         foto_lokasi = as.character(ifelse(is.null(lokasi_data_mongo$foto_lokasi), "", lokasi_data_mongo$foto_lokasi)),
-        timestamp = as.POSIXct(lokasi_data_mongo$timestamp),
+        timestamp = as.POSIXct(as.character(lokasi_data_mongo$timestamp)),
         stringsAsFactors = FALSE
       )
       

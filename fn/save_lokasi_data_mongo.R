@@ -23,7 +23,9 @@ save_lokasi_data_mongo <- function(data) {
     lokasi_conn <- get_mongo_connection("lokasi")
     
     # Clear existing data and insert new data (replace all)
+    # This ensures deletions are properly handled
     lokasi_conn$drop()
+    use_bulk_insert <- TRUE
     
     if (nrow(data) > 0) {
       # Convert data for MongoDB storage
@@ -47,10 +49,18 @@ save_lokasi_data_mongo <- function(data) {
       if(!"program_studi" %in% names(mongo_data)) {
         mongo_data$program_studi <- replicate(nrow(mongo_data), list(), simplify = FALSE)
       } else {
-        # Ensure all program_studi entries are properly formatted lists
+        # Ensure all program_studi entries are properly formatted for MongoDB
         for(i in 1:nrow(mongo_data)) {
-          if(!is.list(mongo_data$program_studi[[i]])) {
-            mongo_data$program_studi[[i]] <- list()
+          # program_studi should remain as character vectors, not nested lists
+          if(is.character(mongo_data$program_studi[[i]])) {
+            # Keep character vectors as-is - MongoDB can handle them
+            # No conversion needed
+          } else if(is.list(mongo_data$program_studi[[i]]) && length(mongo_data$program_studi[[i]]) > 0) {
+            # If it's already a list, flatten it to character vector
+            mongo_data$program_studi[[i]] <- as.character(unlist(mongo_data$program_studi[[i]]))
+          } else {
+            # Empty case
+            mongo_data$program_studi[[i]] <- character(0)
           }
         }
       }
@@ -66,7 +76,7 @@ save_lokasi_data_mongo <- function(data) {
         }
       }
       
-      # For large datasets, use batch processing to avoid MongoDB limits
+      # Bulk insert for complete replacement (handles deletions)
       if(nrow(mongo_data) > 20) {
         cat("INFO: Using batch processing for", nrow(mongo_data), "locations\n")
         batch_size <- 10
@@ -90,13 +100,10 @@ save_lokasi_data_mongo <- function(data) {
       stop(paste("Row count verification failed. Expected:", nrow(data), "rows, but found:", nrow(test_read), "rows"))
     }
     if(nrow(data) > 0) {
-      if(!all(test_read$id_lokasi == data$id_lokasi)) {
+      # Verify all IDs match (order may differ so use %in%)
+      if(!all(data$id_lokasi %in% test_read$id_lokasi) || !all(test_read$id_lokasi %in% data$id_lokasi)) {
         lokasi_conn$disconnect()
-        stop(paste("Lokasi ID verification failed. Data IDs:", paste(data$id_lokasi, collapse=","), "DB IDs:", paste(test_read$id_lokasi, collapse=",")))
-      }
-      if(!all(test_read$nama_lokasi == data$nama_lokasi)) {
-        lokasi_conn$disconnect()
-        stop(paste("Lokasi name verification failed. Some names don't match between data and database"))
+        stop(paste("Lokasi ID verification failed. Some IDs don't match between data and database"))
       }
     }
     

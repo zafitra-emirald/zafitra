@@ -904,17 +904,14 @@ ui <- dashboardPage(
                 column(8, DT::dataTableOutput("lokasi_table")),
                 column(4,
                        wellPanel(
-                         h4("Form Lokasi"),
-                         tags$div(
-                           tags$label("Nama Lokasi:", `for` = "lokasi_nama"),
-                           tags$input(id = "lokasi_nama", type = "text", class = "form-control", placeholder = "Contoh: Desa Tanjungsari", autocomplete = "off")
+                         div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;",
+                             h4("Form Lokasi", style = "margin: 0;"),
+                             actionButton("add_new_lokasi", "📍 Tambah Baru", class = "btn btn-info btn-sm")
                          ),
+                         textInput("lokasi_nama", "Nama Lokasi:", placeholder = "Contoh: Desa Tanjungsari"),
                          textAreaInput("lokasi_deskripsi", "Deskripsi:", rows = 2, placeholder = "Deskripsi singkat lokasi"),
                          textAreaInput("lokasi_alamat", "Alamat Lokasi:", rows = 2, placeholder = "Alamat lengkap lokasi"),
-                         tags$div(
-                           tags$label("Link Google Maps:", `for` = "lokasi_map"),
-                           tags$input(id = "lokasi_map", type = "text", class = "form-control", placeholder = "https://maps.google.com/?q=...", autocomplete = "off")
-                         ),
+                         textInput("lokasi_map", "Link Google Maps:", placeholder = "https://maps.google.com/?q=..."),
                          selectInput("lokasi_kategori", "Kategori:", choices = NULL),
                          textAreaInput("lokasi_isu", "Isu Strategis:", rows = 2, placeholder = "Isu strategis yang akan ditangani"),
                          fileInput("lokasi_foto", "Upload Foto Lokasi (Multiple):", 
