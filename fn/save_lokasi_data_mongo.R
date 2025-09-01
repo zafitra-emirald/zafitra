@@ -13,6 +13,11 @@ save_lokasi_data_mongo <- function(data) {
     stop(paste("SAFETY ABORT: Missing required columns:", paste(missing_cols, collapse=", ")))
   }
   
+  # Add debug information for large datasets
+  if(nrow(data) > 10) {
+    cat("INFO: Saving large dataset with", nrow(data), "locations\n")
+  }
+  
   # Attempt to save with full error handling
   tryCatch({
     lokasi_conn <- get_mongo_connection("lokasi")
@@ -38,33 +43,60 @@ save_lokasi_data_mongo <- function(data) {
         mongo_data$foto_lokasi <- ""
       }
       
-      # Handle list columns (program_studi and foto_lokasi_list)
+      # Handle list columns (program_studi and foto_lokasi_list) with robust validation
       if(!"program_studi" %in% names(mongo_data)) {
         mongo_data$program_studi <- replicate(nrow(mongo_data), list(), simplify = FALSE)
-      }
-      if(!"foto_lokasi_list" %in% names(mongo_data)) {
-        mongo_data$foto_lokasi_list <- replicate(nrow(mongo_data), list(), simplify = FALSE)
+      } else {
+        # Ensure all program_studi entries are properly formatted lists
+        for(i in 1:nrow(mongo_data)) {
+          if(!is.list(mongo_data$program_studi[[i]])) {
+            mongo_data$program_studi[[i]] <- list()
+          }
+        }
       }
       
-      lokasi_conn$insert(mongo_data)
+      if(!"foto_lokasi_list" %in% names(mongo_data)) {
+        mongo_data$foto_lokasi_list <- replicate(nrow(mongo_data), list(), simplify = FALSE)
+      } else {
+        # Ensure all foto_lokasi_list entries are properly formatted lists
+        for(i in 1:nrow(mongo_data)) {
+          if(!is.list(mongo_data$foto_lokasi_list[[i]])) {
+            mongo_data$foto_lokasi_list[[i]] <- list()
+          }
+        }
+      }
+      
+      # For large datasets, use batch processing to avoid MongoDB limits
+      if(nrow(mongo_data) > 20) {
+        cat("INFO: Using batch processing for", nrow(mongo_data), "locations\n")
+        batch_size <- 10
+        for(start_idx in seq(1, nrow(mongo_data), by = batch_size)) {
+          end_idx <- min(start_idx + batch_size - 1, nrow(mongo_data))
+          batch_data <- mongo_data[start_idx:end_idx, ]
+          lokasi_conn$insert(batch_data)
+          cat("INFO: Inserted batch", start_idx, "to", end_idx, "\n")
+        }
+      } else {
+        lokasi_conn$insert(mongo_data)
+      }
     }
     
     # Verify the save was successful by reading it back
     test_read <- lokasi_conn$find()
     
-    # Comprehensive verification
+    # Comprehensive verification with detailed error messages
     if(nrow(test_read) != nrow(data)) {
       lokasi_conn$disconnect()
-      stop("Row count verification failed")
+      stop(paste("Row count verification failed. Expected:", nrow(data), "rows, but found:", nrow(test_read), "rows"))
     }
     if(nrow(data) > 0) {
       if(!all(test_read$id_lokasi == data$id_lokasi)) {
         lokasi_conn$disconnect()
-        stop("Lokasi ID verification failed")
+        stop(paste("Lokasi ID verification failed. Data IDs:", paste(data$id_lokasi, collapse=","), "DB IDs:", paste(test_read$id_lokasi, collapse=",")))
       }
       if(!all(test_read$nama_lokasi == data$nama_lokasi)) {
         lokasi_conn$disconnect()
-        stop("Lokasi name verification failed")
+        stop(paste("Lokasi name verification failed. Some names don't match between data and database"))
       }
     }
     

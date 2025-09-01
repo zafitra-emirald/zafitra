@@ -758,7 +758,7 @@ ui <- dashboardPage(
                          p("Temukan lokasi yang sesuai dengan minat dan passion kamu", 
                            style = "color: var(--text-secondary); font-size: 1rem;")
                      ),
-                     uiOutput("locations_grid", 
+                     uiOutput("locations_registration", 
                               class = "location-grid",
                               style = "display: flex !important; flex-wrap: wrap !important; gap: 0.75rem !important; justify-content: flex-start !important;")
                    ),

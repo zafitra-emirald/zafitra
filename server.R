@@ -604,10 +604,22 @@ server <- function(input, output, session) {
           new_lokasi <- new_lokasi[, names(values$lokasi_data)]
           values$lokasi_data <- rbind(values$lokasi_data, new_lokasi)
         })
-        save_lokasi_data_wrapper(values$lokasi_data)
+        
+        # Save data with detailed error handling
+        tryCatch({
+          save_lokasi_data_wrapper(values$lokasi_data)
+        }, error = function(e) {
+          showNotification(paste("Error saving location data:", e$message), type = "error")
+          return()
+        })
         
         # PRODUCTION FIX: Reload data from file to ensure consistency
-        values$lokasi_data <- refresh_lokasi_data()
+        tryCatch({
+          values$lokasi_data <- refresh_lokasi_data()
+        }, error = function(e) {
+          showNotification(paste("Error refreshing location data:", e$message), type = "error")
+          return()
+        })
         
         showNotification("Lokasi baru berhasil ditambahkan!", type = "message")
         
@@ -652,10 +664,20 @@ server <- function(input, output, session) {
           values$lokasi_data$program_studi[[row_idx]] <- as.character(selected_prodi)
           
           # Force save with structure validation
-          save_lokasi_data_wrapper(values$lokasi_data)
+          tryCatch({
+            save_lokasi_data_wrapper(values$lokasi_data)
+          }, error = function(e) {
+            showNotification(paste("Error saving location data:", e$message), type = "error")
+            return()
+          })
           
           # PRODUCTION FIX: Reload data from file to ensure consistency
-          values$lokasi_data <- refresh_lokasi_data()
+          tryCatch({
+            values$lokasi_data <- refresh_lokasi_data()
+          }, error = function(e) {
+            showNotification(paste("Error refreshing location data:", e$message), type = "error")
+            return()
+          })
           
           # Debug notification showing what was saved
           prodi_text <- if(length(selected_prodi) > 0) paste(selected_prodi, collapse=", ") else "Kosong"
@@ -705,10 +727,22 @@ server <- function(input, output, session) {
       selected_row <- input$lokasi_table_rows_selected
       lokasi_name <- values$lokasi_data[selected_row, "nama_lokasi"]
       values$lokasi_data <- values$lokasi_data[-selected_row, ]
-      save_lokasi_data_wrapper(values$lokasi_data)
+      
+      # Save data with detailed error handling
+      tryCatch({
+        save_lokasi_data_wrapper(values$lokasi_data)
+      }, error = function(e) {
+        showNotification(paste("Error deleting location:", e$message), type = "error")
+        return()
+      })
       
       # PRODUCTION FIX: Reload data from file to ensure consistency
-      values$lokasi_data <- refresh_lokasi_data()
+      tryCatch({
+        values$lokasi_data <- refresh_lokasi_data()
+      }, error = function(e) {
+        showNotification(paste("Error refreshing location data:", e$message), type = "error")
+        return()
+      })
       
       showNotification(paste("Lokasi '", lokasi_name, "' berhasil dihapus!"), type = "message")
       removeModal()
@@ -733,14 +767,7 @@ server <- function(input, output, session) {
   # 6. STUDENT INTERFACE MODULE
   # ================================
   
-  # Quick stats for students
-  output$total_locations_student <- renderText({
-    nrow(values$lokasi_data)
-  })
-  
-  output$active_period_student <- renderText({
-    if(is_registration_open(values$periode_data)) "AKTIF" else "TUTUP"
-  })
+  # Quick stats defined in student interface section below
   
   # Check if there are locations to display
   output$has_locations <- reactive({
@@ -760,9 +787,20 @@ server <- function(input, output, session) {
                  p("Admin belum menambahkan lokasi. Silakan cek kembali nanti.")))
     }
     
+    # Performance optimization: handle large datasets
+    if (nrow(locations) > 50) {
+      return(div(class = "alert alert-warning text-center",
+                 style = "margin-top: 50px; padding: 40px;",
+                 icon("exclamation-triangle", style = "font-size: 3em; margin-bottom: 15px;"),
+                 h4("Terlalu banyak lokasi untuk ditampilkan"),
+                 p(paste("Saat ini ada", nrow(locations), "lokasi. Silakan gunakan pencarian untuk menemukan lokasi yang diinginkan."))))
+    }
+    
     registration_open <- is_registration_open(values$periode_data)
     
-    location_cards <- lapply(1:nrow(locations), function(i) {
+    # Use tryCatch to handle rendering errors gracefully
+    tryCatch({
+      location_cards <- lapply(1:nrow(locations), function(i) {
       loc <- locations[i, ]
       quota_status <- get_current_quota_status(loc$nama_lokasi, values$pendaftaran_data, values$lokasi_data)
       
@@ -872,6 +910,16 @@ server <- function(input, output, session) {
     
     # Return cards as tagList to work with CSS .location-grid class
     return(do.call(tagList, location_cards))
+    
+    }, error = function(e) {
+      # Handle UI rendering errors gracefully
+      return(div(class = "alert alert-danger text-center",
+                 style = "margin-top: 50px; padding: 40px;",
+                 icon("exclamation-triangle", style = "font-size: 3em; margin-bottom: 15px;"),
+                 h4("Error menampilkan lokasi"),
+                 p(paste("Terjadi kesalahan:", e$message)),
+                 p("Silakan refresh halaman atau hubungi administrator.")))
+    })
   })
   
   # ================================
@@ -1214,37 +1262,54 @@ server <- function(input, output, session) {
   
   # Registration form information outputs
   output$selected_location_info <- renderText({
-    if (!is.null(values$selected_location)) {
-      paste(
-        "📍 Lokasi:", values$selected_location$nama_lokasi, "\n",
-        "🏷️ Kategori:", values$selected_location$kategori_lokasi, "\n", 
-        "👥 Kuota:", values$selected_location$kuota_mahasiswa, "mahasiswa\n",
-        "📚 Program Studi yang dapat mendaftar:", {
-          prodi_list <- if(!is.null(values$selected_location$program_studi[[1]])) {
-            values$selected_location$program_studi[[1]]
-          } else character(0)
+    tryCatch({
+      if (!is.null(values$selected_location)) {
+        prodi_list <- if(!is.null(values$selected_location$program_studi[[1]])) {
+          values$selected_location$program_studi[[1]]
+        } else character(0)
+        
+        prodi_text <- if(length(prodi_list) > 0) {
           paste(prodi_list, collapse = ", ")
+        } else {
+          "Semua program studi"
         }
-      )
-    } else {
-      "Tidak ada lokasi yang dipilih"
-    }
+        
+        paste0(
+          "📍 Lokasi: ", values$selected_location$nama_lokasi, "\n",
+          "🏷️ Kategori: ", values$selected_location$kategori_lokasi, "\n", 
+          "👥 Kuota: ", values$selected_location$kuota_mahasiswa, " mahasiswa\n",
+          "📚 Program Studi yang dapat mendaftar: ", prodi_text
+        )
+      } else {
+        "Tidak ada lokasi yang dipilih"
+      }
+    }, error = function(e) {
+      "Error memuat informasi lokasi"
+    })
   })
   
   output$location_description <- renderText({
-    if (!is.null(values$selected_location)) {
-      values$selected_location$deskripsi_lokasi
-    } else {
-      "Tidak ada deskripsi"
-    }
+    tryCatch({
+      if (!is.null(values$selected_location)) {
+        as.character(values$selected_location$deskripsi_lokasi)
+      } else {
+        "Tidak ada deskripsi"
+      }
+    }, error = function(e) {
+      "Error memuat deskripsi"
+    })
   })
   
   output$location_strategic_issues <- renderText({
-    if (!is.null(values$selected_location)) {
-      values$selected_location$isu_strategis
-    } else {
-      "Tidak ada isu strategis"
-    }
+    tryCatch({
+      if (!is.null(values$selected_location)) {
+        as.character(values$selected_location$isu_strategis)
+      } else {
+        "Tidak ada isu strategis"
+      }
+    }, error = function(e) {
+      "Error memuat isu strategis"
+    })
   })
   
   # FIXED: Enhanced reset registration form function with comprehensive file input clearing
@@ -1766,9 +1831,7 @@ output$login_error <- reactive({
 })
 outputOptions(output, "login_error", suspendWhenHidden = FALSE)
 
-output$login_error_message <- renderText({
-  "Username atau password salah!"
-})
+# login_error_message defined above
 
 
 # ================================
@@ -1827,11 +1890,19 @@ observeEvent(input$periode_table_rows_selected, {
 
 # Quick stats for students
 output$total_locations_student <- renderText({
-  nrow(values$lokasi_data)
+  tryCatch({
+    as.character(nrow(values$lokasi_data))
+  }, error = function(e) {
+    "0"
+  })
 })
 
 output$active_period_student <- renderText({
-  if(is_registration_open(values$periode_data)) "AKTIF" else "TUTUP"
+  tryCatch({
+    if(is_registration_open(values$periode_data)) "AKTIF" else "TUTUP"
+  }, error = function(e) {
+    "TUTUP"
+  })
 })
 
 # Check if there are locations to display
@@ -1840,8 +1911,8 @@ output$has_locations <- reactive({
 })
 outputOptions(output, "has_locations", suspendWhenHidden = FALSE)
 
-# Enhanced locations display with real-time quota
-output$locations_grid <- renderUI({
+# Enhanced locations display for registration with real-time quota  
+output$locations_registration <- renderUI({
   locations <- values$lokasi_data
   
   if (nrow(locations) == 0) {
@@ -1852,9 +1923,20 @@ output$locations_grid <- renderUI({
                p("Admin belum menambahkan lokasi. Silakan cek kembali nanti.")))
   }
   
+  # Performance optimization: handle large datasets
+  if (nrow(locations) > 50) {
+    return(div(class = "alert alert-warning text-center",
+               style = "margin-top: 50px; padding: 40px;",
+               icon("exclamation-triangle", style = "font-size: 3em; margin-bottom: 15px;"),
+               h4("Terlalu banyak lokasi untuk ditampilkan"),
+               p(paste("Saat ini ada", nrow(locations), "lokasi. Silakan gunakan pencarian untuk menemukan lokasi yang diinginkan."))))
+  }
+  
   registration_open <- is_registration_open(values$periode_data)
   
-  location_cards <- lapply(1:nrow(locations), function(i) {
+  # Use tryCatch to handle rendering errors gracefully  
+  tryCatch({
+    location_cards <- lapply(1:nrow(locations), function(i) {
     loc <- locations[i, ]
     quota_status <- get_current_quota_status(loc$nama_lokasi, values$pendaftaran_data, values$lokasi_data)
     
@@ -1970,6 +2052,16 @@ output$locations_grid <- renderUI({
   })
   
   return(do.call(tagList, location_cards))
+  
+  }, error = function(e) {
+    # Handle UI rendering errors gracefully
+    return(div(class = "alert alert-danger text-center",
+               style = "margin-top: 50px; padding: 40px;",
+               icon("exclamation-triangle", style = "font-size: 3em; margin-bottom: 15px;"),
+               h4("Error menampilkan lokasi"),
+               p(paste("Terjadi kesalahan:", e$message)),
+               p("Silakan refresh halaman atau hubungi administrator.")))
+  })
 })
 
 # ================================
@@ -2004,34 +2096,9 @@ observeEvent(input$show_registration_modal, {
   values$show_registration_modal <- TRUE
 }, ignoreInit = TRUE)
 
-# Registration form outputs
-output$selected_location_info <- renderText({
-  if (!is.null(values$selected_location)) {
-    paste(
-      "📍 Lokasi:", values$selected_location$nama_lokasi, "\n",
-      "🏷️ Kategori:", values$selected_location$kategori_lokasi, "\n", 
-      "👥 Kuota:", values$selected_location$kuota_mahasiswa, "mahasiswa\n",
-      "📚 Program Studi yang dapat mendaftar:", {
-        prodi_list <- if(!is.null(values$selected_location$program_studi[[1]])) {
-          values$selected_location$program_studi[[1]]
-        } else character(0)
-        paste(prodi_list, collapse = ", ")
-      }
-    )
-  }
-})
+# Registration form outputs (selected_location_info defined above)
 
-output$location_description <- renderText({
-  if (!is.null(values$selected_location)) {
-    values$selected_location$deskripsi_lokasi
-  }
-})
-
-output$location_strategic_issues <- renderText({
-  if (!is.null(values$selected_location)) {
-    values$selected_location$isu_strategis
-  }
-})
+# location_description and location_strategic_issues defined above
 
 # Reset registration form function
 reset_registration_form <- function() {
