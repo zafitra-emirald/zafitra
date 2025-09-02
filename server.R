@@ -25,8 +25,122 @@ server <- function(input, output, session) {
     show_admin_modal = FALSE,
     selected_photo_location = NULL,
     last_registration_id = if(nrow(fresh_pendaftaran_data) > 0) max(fresh_pendaftaran_data$id_pendaftaran, na.rm = TRUE) else 0,
-    last_update_timestamp = Sys.time()  # ENHANCED: Add timestamp for real-time updates
+    last_update_timestamp = Sys.time(),  # ENHANCED: Add timestamp for real-time updates
+    registration_in_progress = FALSE,  # Lock to prevent concurrent registrations
+    registration_queue = list()  # Queue for processing registrations
   )
+  
+  # Helper function to generate unique queue ID
+  generate_queue_id <- function() {
+    paste0("reg_", as.numeric(Sys.time()), "_", sample(1000:9999, 1))
+  }
+  
+  # Process single registration from queue
+  process_single_registration <- function(queue_item) {
+    # Refresh data to get latest state
+    tryCatch({
+      values$pendaftaran_data <- refresh_pendaftaran_data()
+    }, error = function(e) {
+      showNotification("❌ Gagal memuat data. Silakan refresh halaman.", type = "error", duration = 8)
+      return()
+    })
+    
+    # Re-validate with fresh data
+    eligibility <- check_registration_eligibility(queue_item$reg_nim, queue_item$location_name, 
+                                                values$pendaftaran_data, values$periode_data)
+    
+    if (!eligibility$eligible) {
+      showNotification(paste("❌", queue_item$reg_nama, "tidak dapat mendaftar:", eligibility$reason), 
+                      type = "error", duration = 5)
+      return()
+    }
+    
+    quota_status <- get_current_quota_status(queue_item$location_name, 
+                                           values$pendaftaran_data, values$lokasi_data)
+    
+    if (quota_status$available_quota <= 0) {
+      showNotification(paste("❌", queue_item$reg_nama, "- kuota sudah penuh"), 
+                      type = "error", duration = 5)
+      return()
+    }
+    
+    # Create registration entry (without ID - will be generated atomically)
+    new_registration <- data.frame(
+      nim_mahasiswa = as.character(queue_item$reg_nim),
+      nama_mahasiswa = as.character(queue_item$reg_nama),
+      program_studi = as.character(queue_item$reg_program_studi),
+      kontak = as.character(queue_item$reg_kontak),
+      pilihan_lokasi = as.character(queue_item$location_name),
+      letter_of_interest_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_letter_of_interest), "", queue_item$doc_paths$reg_letter_of_interest)),
+      cv_mahasiswa_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_cv_mahasiswa), "", queue_item$doc_paths$reg_cv_mahasiswa)),
+      form_rekomendasi_prodi_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_form_rekomendasi), "", queue_item$doc_paths$reg_form_rekomendasi)),
+      form_komitmen_mahasiswa_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_form_komitmen), "", queue_item$doc_paths$reg_form_komitmen)),
+      transkrip_nilai_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_transkrip_nilai), "", queue_item$doc_paths$reg_transkrip_nilai)),
+      status_pendaftaran = as.character("Diajukan"),
+      alasan_penolakan = as.character(""),
+      stringsAsFactors = FALSE
+    )
+    
+    # Use atomic save operation for MongoDB only
+    tryCatch({
+      source("fn/save_single_pendaftaran_mongo.R")
+      new_id <- save_single_pendaftaran_mongo(new_registration)
+      
+      # Refresh data after save
+      tryCatch({
+        values$pendaftaran_data <- refresh_pendaftaran_data()
+      }, error = function(e) {
+        showNotification("❌ Gagal memuat data terbaru. Silakan refresh halaman.", type = "warning", duration = 5)
+      })
+      values$last_registration_id <- new_id
+      
+      # Show success notification
+      showNotification(paste("✅", queue_item$reg_nama, "berhasil didaftarkan! ID:", new_id), 
+                      type = "success", duration = 5)
+      
+    }, error = function(e) {
+      showNotification(paste("❌", queue_item$reg_nama, "gagal disimpan. Silakan coba lagi:", e$message), 
+                      type = "error", duration = 8)
+    })
+  }
+  
+  # Process registration queue sequentially
+  process_registration_queue <- function() {
+    if (values$registration_in_progress || length(values$registration_queue) == 0) {
+      return()
+    }
+    
+    values$registration_in_progress <- TRUE
+    queue_item <- values$registration_queue[[1]]
+    values$registration_queue <- values$registration_queue[-1]
+    
+    tryCatch({
+      process_single_registration(queue_item)
+    }, error = function(e) {
+      # Show error for this specific registration
+      showNotification(paste("❌ Pendaftaran", queue_item$reg_nama, "gagal:", e$message), 
+                      type = "error", duration = 5)
+    }, finally = {
+      values$registration_in_progress <- FALSE
+      # Process next item in queue
+      if (length(values$registration_queue) > 0) {
+        shinyjs::delay(100, process_registration_queue())
+      }
+    })
+  }
+  
+  # Helper function to release registration lock and restore button state
+  release_registration_lock <- function() {
+    values$registration_in_progress <- FALSE
+    shinyjs::enable("submit_registration")
+    removeNotification("registration_processing")
+    
+    # Restore button to original state
+    shinyjs::runjs("
+      $('#submit_registration').html('✅ Submit Pendaftaran');
+      $('#submit_registration').removeClass('btn-warning').addClass('btn-success');
+    ")
+  }
   
   # ================================
   # 2. VERSION INFO OUTPUT
@@ -2235,12 +2349,16 @@ observeEvent(input$close_registration_modal, {
   ")
 })
 
-# Registration submission
+# Registration submission with queue system
 observeEvent(input$submit_registration, {
   req(input$reg_nim, input$reg_nama, input$reg_program_studi, input$reg_kontak)
   
+  # Generate unique queue ID for this registration
+  queue_id <- generate_queue_id()
+  queue_position <- length(values$registration_queue) + 1
+  
   tryCatch({
-    # Validate registration eligibility
+    # Initial validation (without blocking other users)
     eligibility <- check_registration_eligibility(input$reg_nim, values$selected_location$nama_lokasi, 
                                                   values$pendaftaran_data, values$periode_data)
     
@@ -2248,19 +2366,6 @@ observeEvent(input$submit_registration, {
       showModal(modalDialog(
         title = "❌ Tidak Dapat Mendaftar",
         div(class = "alert alert-danger", eligibility$reason),
-        footer = modalButton("OK")
-      ))
-      return()
-    }
-    
-    # Check quota availability
-    quota_status <- get_current_quota_status(values$selected_location$nama_lokasi, 
-                                             values$pendaftaran_data, values$lokasi_data)
-    
-    if (quota_status$available_quota <= 0) {
-      showModal(modalDialog(
-        title = "❌ Kuota Penuh",
-        div(class = "alert alert-warning", "Maaf, kuota untuk lokasi ini sudah penuh."),
         footer = modalButton("OK")
       ))
       return()
@@ -2326,138 +2431,42 @@ observeEvent(input$submit_registration, {
       }
     }
     
-    # Generate proper registration ID
-    new_id <- get_next_registration_id(values$pendaftaran_data)
-    
-    # Create new registration entry with exact column matching
-    new_registration <- data.frame(
-      id_pendaftaran = as.integer(new_id),
-      timestamp = Sys.time(),
-      nim_mahasiswa = as.character(input$reg_nim),
-      nama_mahasiswa = as.character(input$reg_nama),
-      program_studi = as.character(input$reg_program_studi),
-      kontak = as.character(input$reg_kontak),
-      pilihan_lokasi = as.character(values$selected_location$nama_lokasi),
-      letter_of_interest_path = as.character(ifelse(is.null(doc_paths[["reg_letter_of_interest"]]), "", doc_paths[["reg_letter_of_interest"]])),
-      cv_mahasiswa_path = as.character(ifelse(is.null(doc_paths[["reg_cv_mahasiswa"]]), "", doc_paths[["reg_cv_mahasiswa"]])),
-      form_rekomendasi_prodi_path = as.character(ifelse(is.null(doc_paths[["reg_form_rekomendasi"]]), "", doc_paths[["reg_form_rekomendasi"]])),
-      form_komitmen_mahasiswa_path = as.character(ifelse(is.null(doc_paths[["reg_form_komitmen"]]), "", doc_paths[["reg_form_komitmen"]])),
-      transkrip_nilai_path = as.character(ifelse(is.null(doc_paths[["reg_transkrip_nilai"]]), "", doc_paths[["reg_transkrip_nilai"]])),
-      status_pendaftaran = as.character("Diajukan"),
-      alasan_penolakan = as.character(""),
-      stringsAsFactors = FALSE
+    # Create queue item with all necessary data
+    queue_item <- list(
+      queue_id = queue_id,
+      reg_nim = input$reg_nim,
+      reg_nama = input$reg_nama,
+      reg_program_studi = input$reg_program_studi,
+      reg_kontak = input$reg_kontak,
+      location_name = values$selected_location$nama_lokasi,
+      doc_paths = doc_paths,
+      timestamp = Sys.time()
     )
     
-    # Ensure column order matches exactly
-    required_cols <- c("id_pendaftaran", "timestamp", "nim_mahasiswa", "nama_mahasiswa", "program_studi", 
-                       "kontak", "pilihan_lokasi", "letter_of_interest_path",
-                       "cv_mahasiswa_path", "form_rekomendasi_prodi_path", 
-                       "form_komitmen_mahasiswa_path", "transkrip_nilai_path", 
-                       "status_pendaftaran", "alasan_penolakan")
-    new_registration <- new_registration[, required_cols, drop = FALSE]
+    # Add to queue
+    values$registration_queue <- append(values$registration_queue, list(queue_item))
     
-    # Add to data and save with error handling
-    tryCatch({
-      # Ensure both data frames have the same structure before rbind
-      if(ncol(values$pendaftaran_data) != ncol(new_registration)) {
-        # Force refresh of data structure
-        load_or_create_data()
-      }
-      values$pendaftaran_data <- rbind(values$pendaftaran_data, new_registration)
-      values$last_registration_id <- new_id
-    }, error = function(e) {
-      # If rbind fails, create a fresh data frame
-      showNotification(paste("Data structure mismatch, refreshing..."), type = "warning")
-      load_or_create_data()
-      values$pendaftaran_data <- rbind(values$pendaftaran_data, new_registration)
-      values$last_registration_id <- new_id
-    })
+    # Show queue notification
+    if (queue_position == 1) {
+      showNotification("⏳ Memproses pendaftaran Anda...", type = "message", duration = 3)
+    } else {
+      showNotification(paste("⏳ Pendaftaran dalam antrian, posisi:", queue_position), type = "message", duration = 3)
+    }
     
-    # Save to RDS file
-    tryCatch({
-      if (!dir.exists("data")) dir.create("data", recursive = TRUE)
-      save_pendaftaran_data_wrapper(values$pendaftaran_data)
-      values$pendaftaran_data <- refresh_pendaftaran_data()
-    }, error = function(e) {
-      showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
-    })
-    
-    # FIXED: Store location name before clearing for success modal
-    selected_location_name <- values$selected_location$nama_lokasi
-    
-    # FIXED: Close registration modal and reset form BEFORE showing success modal
+    # Close modal and reset form
     values$show_registration_modal <- FALSE
     reset_registration_form()
-    
-    # FIXED: Clean up registration modal without affecting other modals
-    shinyjs::runjs("
-      // Clean up only if no other modals are open
-      setTimeout(function() {
-        if($('.modal.show').length === 0) {
-          $('.modal-backdrop').remove();
-          $('body').removeClass('modal-open');
-          $('body').css('padding-right', '');
-          $('body').css('overflow', '');
-        }
-      }, 100);
-    ")
-    
-    # FIXED: Small delay before showing success modal to ensure cleanup
-    shinyjs::delay(300, {
-      showModal(modalDialog(
-        title = div(style = "text-align: center;",
-                    h3("🎉 Pendaftaran Berhasil!", style = "color: #28a745;")
-        ),
-        div(style = "text-align: center; padding: 20px;",
-            div(style = "background: #d4edda; padding: 20px; border-radius: 10px; margin-bottom: 20px;",
-                h4("📋 Detail Pendaftaran", style = "color: #155724; margin-bottom: 15px;"),
-                p(strong("ID Pendaftaran: "), span(new_id, style = "color: #007bff; font-weight: bold;")),
-                p(strong("Nama: "), input$reg_nama),
-                p(strong("Lokasi: "), selected_location_name),
-                p(strong("Program Studi: "), input$reg_program_studi),
-                p(strong("Status: "), span("⏳ Diajukan", style = "color: #856404; font-weight: bold;"))
-            ),
-            div(style = "background: #fff3cd; padding: 15px; border-radius: 8px;",
-                h5("📌 Langkah Selanjutnya:", style = "color: #856404;"),
-                p("✅ Pendaftaran Anda akan diproses oleh admin", style = "margin: 5px 0;"),
-                p("📧 Anda akan dihubungi melalui kontak yang diberikan", style = "margin: 5px 0;"),
-                p("📋 Simpan ID Pendaftaran untuk referensi", style = "margin: 5px 0;")
-            )
-        ),
-        footer = div(style = "text-align: center;",
-                     actionButton("close_success_modal", "✅ Mengerti", class = "btn btn-success")
-        ),
-        easyClose = FALSE
-      ))
-    })
-    
-    # FIXED: Clear selected location after storing name for success modal
     values$selected_location <- NULL
+    
+    # Start processing queue
+    process_registration_queue()
     
   }, error = function(e) {
-    # FIXED: Close registration modal even when error occurs
-    values$show_registration_modal <- FALSE
-    reset_registration_form()
-    
-    # Clean up modal state
-    shinyjs::runjs("
-      $('.modal-backdrop').remove();
-      $('body').removeClass('modal-open');
-      $('body').css('padding-right', '');
-      $('body').css('overflow', '');
-    ")
-    
-    # Clear selected location
-    values$selected_location <- NULL
-    
-    # Show error modal
-    shinyjs::delay(200, {
-      showModal(modalDialog(
-        title = "❌ Error",
-        div(class = "alert alert-danger", paste("Terjadi kesalahan:", e$message)),
-        footer = modalButton("OK")
-      ))
-    })
+    showModal(modalDialog(
+      title = "❌ Error",
+      div(class = "alert alert-danger", paste("Terjadi kesalahan:", e$message)),
+      footer = modalButton("OK")
+    ))
   })
 })
 
@@ -3007,7 +3016,7 @@ observeEvent(input$approve_registration_id, {
         save_pendaftaran_data_wrapper(values$pendaftaran_data)
         values$pendaftaran_data <- refresh_pendaftaran_data()
       }, error = function(e) {
-        showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
+        showNotification("❌ Gagal menyimpan data. Silakan coba lagi atau refresh halaman jika masalah berlanjut.", type = "error", duration = 8)
       })
       
       Sys.sleep(0.1)
@@ -3108,7 +3117,7 @@ observeEvent(input$confirm_reject, {
         save_pendaftaran_data_wrapper(values$pendaftaran_data)
         values$pendaftaran_data <- refresh_pendaftaran_data()
       }, error = function(e) {
-        showNotification("Warning: Data tidak tersimpan ke file", type = "warning")
+        showNotification("❌ Gagal menyimpan data. Silakan coba lagi atau refresh halaman jika masalah berlanjut.", type = "error", duration = 8)
       })
       
       removeModal()
