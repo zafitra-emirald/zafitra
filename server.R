@@ -2573,7 +2573,7 @@ output$registration_results <- DT::renderDataTable({
     Prodi = results$program_studi,
     Lokasi = results$pilihan_lokasi,
     Status = results$status_pendaftaran,
-    Tanggal = format(results$timestamp, "%d-%m-%Y %H:%M")
+    Tanggal = tryCatch(format(as.POSIXct(results$timestamp), "%d-%m-%Y %H:%M"), error = function(e) as.character(results$timestamp))
   )
   
   return(DT::datatable(simple_data, 
@@ -2687,7 +2687,7 @@ output$admin_registrations_table <- DT::renderDataTable({
   }
   
   display_data <- registrations
-  display_data$timestamp <- format(display_data$timestamp, "%d-%m-%Y %H:%M")
+  display_data$timestamp <- tryCatch(format(as.POSIXct(display_data$timestamp), "%d-%m-%Y %H:%M"), error = function(e) as.character(display_data$timestamp))
   
   # Add document status column
   display_data$dokumen_status <- sapply(1:nrow(display_data), function(i) {
@@ -2833,7 +2833,7 @@ observeEvent(input$view_registration_detail, {
                 column(6,
                        p(strong("Tanggal Daftar: "), 
                          if("timestamp" %in% names(reg)) {
-                           format(reg$timestamp, "%d-%m-%Y %H:%M") 
+                           tryCatch(format(as.POSIXct(reg$timestamp), "%d-%m-%Y %H:%M"), error = function(e) as.character(reg$timestamp)) 
                          } else { 
                            "Tidak ada data" 
                          }),
@@ -3002,37 +3002,41 @@ observeEvent(input$approve_registration_id, {
         ")
     
     reg_id <- input$approve_registration_id
-    row_idx <- which(values$pendaftaran_data$id_pendaftaran == reg_id)
     
-    if(length(row_idx) > 0) {
-      registration <- values$pendaftaran_data[row_idx, ]
-      
-      values$pendaftaran_data[row_idx, "status_pendaftaran"] <- "Disetujui"
-      if("alasan_penolakan" %in% names(values$pendaftaran_data)) {
-        values$pendaftaran_data[row_idx, "alasan_penolakan"] <- NA
-      }
-      
-      tryCatch({
-        save_pendaftaran_data_wrapper(values$pendaftaran_data)
-        values$pendaftaran_data <- refresh_pendaftaran_data()
-      }, error = function(e) {
-        showNotification("❌ Gagal menyimpan data. Silakan coba lagi atau refresh halaman jika masalah berlanjut.", type = "error", duration = 8)
-      })
+    # Get student name before update for display
+    row_idx <- which(values$pendaftaran_data$id_pendaftaran == reg_id)
+    if(length(row_idx) == 0) {
+      showNotification("❌ Pendaftaran tidak ditemukan", type = "error")
+      return()
+    }
+    
+    student_name <- values$pendaftaran_data[row_idx, "nama_mahasiswa"]
+    
+    # Use atomic update function
+    update_pendaftaran_status_mongo(reg_id, "Disetujui", "")
+    
+    # Refresh data to reflect changes
+    tryCatch({
+      values$pendaftaran_data <- refresh_pendaftaran_data()
+    }, error = function(e) {
+      showNotification("❌ Gagal memuat data terbaru. Silakan refresh halaman.", type = "warning", duration = 5)
+    })
       
       Sys.sleep(0.1)
       
       showModal(modalDialog(
         title = "✅ Pendaftaran Disetujui",
         div(style = "text-align: center; padding: 20px;",
-            h4(paste("Pendaftaran", registration$nama_mahasiswa, "telah disetujui!"), style = "color: #28a745;"),
+            h4(paste("Pendaftaran", student_name, "telah disetujui!"), style = "color: #28a745;"),
             p("Mahasiswa akan dihubungi untuk langkah selanjutnya.")
         ),
         footer = actionButton("close_approve_modal", "OK", class = "btn btn-success"),
         easyClose = TRUE
       ))
-    }
+    
   }, error = function(e) {
-    showNotification(paste("Error saat menyetujui:", e$message), type = "error")
+    showNotification(paste("❌ Gagal menyetujui pendaftaran. Silakan coba lagi:", e$message), type = "error", duration = 8)
+    removeModal()
   })
 })
 
@@ -3105,37 +3109,43 @@ observeEvent(input$confirm_reject, {
   
   tryCatch({
     reg_id <- input$reject_registration_id
-    row_idx <- which(values$pendaftaran_data$id_pendaftaran == reg_id)
     
-    if(length(row_idx) > 0) {
-      registration <- values$pendaftaran_data[row_idx, ]
-      
-      values$pendaftaran_data[row_idx, "status_pendaftaran"] <- "Ditolak"
-      values$pendaftaran_data[row_idx, "alasan_penolakan"] <- input$rejection_reason
-      
-      tryCatch({
-        save_pendaftaran_data_wrapper(values$pendaftaran_data)
-        values$pendaftaran_data <- refresh_pendaftaran_data()
-      }, error = function(e) {
-        showNotification("❌ Gagal menyimpan data. Silakan coba lagi atau refresh halaman jika masalah berlanjut.", type = "error", duration = 8)
-      })
-      
-      removeModal()
-      
-      Sys.sleep(0.1)
-      
-      showModal(modalDialog(
-        title = "❌ Pendaftaran Ditolak",
-        div(style = "text-align: center; padding: 20px;",
-            h4(paste("Pendaftaran", registration$nama_mahasiswa, "telah ditolak."), style = "color: #dc3545;"),
-            p("Mahasiswa akan dihubungi dengan alasan penolakan.")
-        ),
-        footer = actionButton("close_reject_modal", "OK", class = "btn btn-secondary"),
-        easyClose = TRUE
-      ))
+    # Get student name before update for display
+    row_idx <- which(values$pendaftaran_data$id_pendaftaran == reg_id)
+    if(length(row_idx) == 0) {
+      showNotification("❌ Pendaftaran tidak ditemukan", type = "error")
+      return()
     }
+    
+    student_name <- values$pendaftaran_data[row_idx, "nama_mahasiswa"]
+    
+    # Use atomic update function
+    update_pendaftaran_status_mongo(reg_id, "Ditolak", input$rejection_reason)
+    
+    # Refresh data to reflect changes
+    tryCatch({
+      values$pendaftaran_data <- refresh_pendaftaran_data()
+    }, error = function(e) {
+      showNotification("❌ Gagal memuat data terbaru. Silakan refresh halaman.", type = "warning", duration = 5)
+    })
+    
+    removeModal()
+    
+    Sys.sleep(0.1)
+    
+    showModal(modalDialog(
+      title = "❌ Pendaftaran Ditolak",
+      div(style = "text-align: center; padding: 20px;",
+          h4(paste("Pendaftaran", student_name, "telah ditolak."), style = "color: #dc3545;"),
+          p("Mahasiswa dapat mendaftar kembali setelah memperbaiki dokumen/persyaratan.")
+      ),
+      footer = actionButton("close_reject_modal", "OK", class = "btn btn-secondary"),
+      easyClose = TRUE
+    ))
+    
   }, error = function(e) {
-    showNotification(paste("Error saat menolak:", e$message), type = "error")
+    showNotification(paste("❌ Gagal menolak pendaftaran. Silakan coba lagi:", e$message), type = "error", duration = 8)
+    removeModal()
   })
 })
 

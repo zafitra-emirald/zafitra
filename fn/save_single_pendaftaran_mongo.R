@@ -69,10 +69,20 @@ save_single_pendaftaran_mongo <- function(registration_data) {
       if (file.exists(lock_file)) file.remove(lock_file)
     })
     
-    # Prepare data for MongoDB insertion
-    mongo_data <- registration_data
+    # Prepare data for MongoDB insertion - convert data.frame to list
+    mongo_data <- as.list(registration_data[1, ])  # Convert first row to list
     mongo_data$id_pendaftaran <- as.integer(new_id)
     mongo_data$timestamp <- as.character(Sys.time())
+    
+    # Ensure all values are atomic (not lists or vectors)
+    for(col in names(mongo_data)) {
+      if (is.list(mongo_data[[col]]) || length(mongo_data[[col]]) > 1) {
+        mongo_data[[col]] <- as.character(mongo_data[[col]][1])
+      }
+      if (is.na(mongo_data[[col]])) {
+        mongo_data[[col]] <- ""
+      }
+    }
     
     # Handle optional columns with default values
     optional_cols <- c("letter_of_interest_path", "cv_mahasiswa_path", 
@@ -81,9 +91,6 @@ save_single_pendaftaran_mongo <- function(registration_data) {
     for(col in optional_cols) {
       if(!col %in% names(mongo_data)) {
         mongo_data[[col]] <- ""
-      } else {
-        # Replace NA values with empty strings
-        mongo_data[[col]][is.na(mongo_data[[col]])] <- ""
       }
     }
     

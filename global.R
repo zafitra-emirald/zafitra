@@ -72,6 +72,8 @@ source("fn/save_periode_data_mongo.R")
 source("fn/save_lokasi_data_mongo.R") 
 source("fn/save_single_lokasi_mongo.R")
 source("fn/save_pendaftaran_data_mongo.R")
+source("fn/save_single_pendaftaran_mongo.R")
+source("fn/update_pendaftaran_status_mongo.R")
 
 # Legacy RDS functions (for fallback if needed)
 source("fn/load_or_create_data.R")

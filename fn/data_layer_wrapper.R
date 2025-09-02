@@ -214,21 +214,26 @@ refresh_pendaftaran_data <- function() {
         stringsAsFactors = FALSE
       ))
     } else {
+      # Ensure all required columns exist with proper defaults
+      pendaftaran_data_mongo$status_pendaftaran[is.na(pendaftaran_data_mongo$status_pendaftaran) | pendaftaran_data_mongo$status_pendaftaran == ""] <- "Diajukan"
+      pendaftaran_data_mongo$alasan_penolakan[is.na(pendaftaran_data_mongo$alasan_penolakan)] <- ""
+      
+      # Return data as-is from MongoDB with minimal conversion
       return(data.frame(
         id_pendaftaran = as.integer(pendaftaran_data_mongo$id_pendaftaran),
-        timestamp = as.POSIXct(pendaftaran_data_mongo$timestamp),
+        timestamp = as.character(pendaftaran_data_mongo$timestamp),
         nim_mahasiswa = as.character(pendaftaran_data_mongo$nim_mahasiswa),
         nama_mahasiswa = as.character(pendaftaran_data_mongo$nama_mahasiswa),
         program_studi = as.character(pendaftaran_data_mongo$program_studi),
         kontak = as.character(pendaftaran_data_mongo$kontak),
         pilihan_lokasi = as.character(pendaftaran_data_mongo$pilihan_lokasi),
-        letter_of_interest_path = as.character(ifelse(is.null(pendaftaran_data_mongo$letter_of_interest_path), "", pendaftaran_data_mongo$letter_of_interest_path)),
-        cv_mahasiswa_path = as.character(ifelse(is.null(pendaftaran_data_mongo$cv_mahasiswa_path), "", pendaftaran_data_mongo$cv_mahasiswa_path)),
-        form_rekomendasi_prodi_path = as.character(ifelse(is.null(pendaftaran_data_mongo$form_rekomendasi_prodi_path), "", pendaftaran_data_mongo$form_rekomendasi_prodi_path)),
-        form_komitmen_mahasiswa_path = as.character(ifelse(is.null(pendaftaran_data_mongo$form_komitmen_mahasiswa_path), "", pendaftaran_data_mongo$form_komitmen_mahasiswa_path)),
-        transkrip_nilai_path = as.character(ifelse(is.null(pendaftaran_data_mongo$transkrip_nilai_path), "", pendaftaran_data_mongo$transkrip_nilai_path)),
-        status_pendaftaran = as.character(ifelse(is.null(pendaftaran_data_mongo$status_pendaftaran), "Pending", pendaftaran_data_mongo$status_pendaftaran)),
-        alasan_penolakan = as.character(ifelse(is.null(pendaftaran_data_mongo$alasan_penolakan), "", pendaftaran_data_mongo$alasan_penolakan)),
+        letter_of_interest_path = as.character(pendaftaran_data_mongo$letter_of_interest_path),
+        cv_mahasiswa_path = as.character(pendaftaran_data_mongo$cv_mahasiswa_path),
+        form_rekomendasi_prodi_path = as.character(pendaftaran_data_mongo$form_rekomendasi_prodi_path),
+        form_komitmen_mahasiswa_path = as.character(pendaftaran_data_mongo$form_komitmen_mahasiswa_path),
+        transkrip_nilai_path = as.character(pendaftaran_data_mongo$transkrip_nilai_path),
+        status_pendaftaran = as.character(pendaftaran_data_mongo$status_pendaftaran),
+        alasan_penolakan = as.character(pendaftaran_data_mongo$alasan_penolakan),
         stringsAsFactors = FALSE
       ))
     }

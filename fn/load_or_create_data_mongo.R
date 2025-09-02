@@ -172,7 +172,7 @@ load_or_create_data_mongo <- function() {
       # Convert MongoDB data to R data.frame with proper types
       pendaftaran_data <<- data.frame(
         id_pendaftaran = as.integer(pendaftaran_data_mongo$id_pendaftaran),
-        timestamp = as.POSIXct(pendaftaran_data_mongo$timestamp),
+        timestamp = as.character(pendaftaran_data_mongo$timestamp),
         nim_mahasiswa = as.character(pendaftaran_data_mongo$nim_mahasiswa),
         nama_mahasiswa = as.character(pendaftaran_data_mongo$nama_mahasiswa),
         program_studi = as.character(pendaftaran_data_mongo$program_studi),
