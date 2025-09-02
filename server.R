@@ -65,17 +65,40 @@ server <- function(input, output, session) {
     }
     
     # Create registration entry (without ID - will be generated atomically)
+    # Safely extract document paths to avoid list type issues
+    letter_path <- ""
+    cv_path <- ""
+    rekomendasi_path <- ""
+    komitmen_path <- ""
+    transkrip_path <- ""
+    
+    if (!is.null(queue_item$doc_paths$reg_letter_of_interest) && queue_item$doc_paths$reg_letter_of_interest != "") {
+      letter_path <- as.character(queue_item$doc_paths$reg_letter_of_interest)
+    }
+    if (!is.null(queue_item$doc_paths$reg_cv_mahasiswa) && queue_item$doc_paths$reg_cv_mahasiswa != "") {
+      cv_path <- as.character(queue_item$doc_paths$reg_cv_mahasiswa)
+    }
+    if (!is.null(queue_item$doc_paths$reg_form_rekomendasi) && queue_item$doc_paths$reg_form_rekomendasi != "") {
+      rekomendasi_path <- as.character(queue_item$doc_paths$reg_form_rekomendasi)
+    }
+    if (!is.null(queue_item$doc_paths$reg_form_komitmen) && queue_item$doc_paths$reg_form_komitmen != "") {
+      komitmen_path <- as.character(queue_item$doc_paths$reg_form_komitmen)
+    }
+    if (!is.null(queue_item$doc_paths$reg_transkrip_nilai) && queue_item$doc_paths$reg_transkrip_nilai != "") {
+      transkrip_path <- as.character(queue_item$doc_paths$reg_transkrip_nilai)
+    }
+    
     new_registration <- data.frame(
       nim_mahasiswa = as.character(queue_item$reg_nim),
       nama_mahasiswa = as.character(queue_item$reg_nama),
       program_studi = as.character(queue_item$reg_program_studi),
       kontak = as.character(queue_item$reg_kontak),
       pilihan_lokasi = as.character(queue_item$location_name),
-      letter_of_interest_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_letter_of_interest), "", queue_item$doc_paths$reg_letter_of_interest)),
-      cv_mahasiswa_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_cv_mahasiswa), "", queue_item$doc_paths$reg_cv_mahasiswa)),
-      form_rekomendasi_prodi_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_form_rekomendasi), "", queue_item$doc_paths$reg_form_rekomendasi)),
-      form_komitmen_mahasiswa_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_form_komitmen), "", queue_item$doc_paths$reg_form_komitmen)),
-      transkrip_nilai_path = as.character(ifelse(is.null(queue_item$doc_paths$reg_transkrip_nilai), "", queue_item$doc_paths$reg_transkrip_nilai)),
+      letter_of_interest_path = letter_path,
+      cv_mahasiswa_path = cv_path,
+      form_rekomendasi_prodi_path = rekomendasi_path,
+      form_komitmen_mahasiswa_path = komitmen_path,
+      transkrip_nilai_path = transkrip_path,
       status_pendaftaran = as.character("Diajukan"),
       alasan_penolakan = as.character(""),
       stringsAsFactors = FALSE
@@ -2420,6 +2443,11 @@ observeEvent(input$submit_registration, {
     if (!dir.exists(upload_dir)) dir.create(upload_dir, recursive = TRUE)
     
     required_docs <- c("reg_letter_of_interest", "reg_cv_mahasiswa", "reg_form_rekomendasi", "reg_form_komitmen", "reg_transkrip_nilai")
+    
+    # Initialize all doc_paths to empty strings to prevent NULL access issues
+    for (doc in required_docs) {
+      doc_paths[[doc]] <- ""
+    }
     
     for (doc in required_docs) {
       if (!is.null(input[[doc]])) {

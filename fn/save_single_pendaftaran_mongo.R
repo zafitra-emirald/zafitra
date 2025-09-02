@@ -69,18 +69,45 @@ save_single_pendaftaran_mongo <- function(registration_data) {
       if (file.exists(lock_file)) file.remove(lock_file)
     })
     
-    # Prepare data for MongoDB insertion - convert data.frame to list
-    mongo_data <- as.list(registration_data[1, ])  # Convert first row to list
+    # Prepare data for MongoDB insertion - safely convert data.frame to list
+    mongo_data <- list()
+    
+    # Manually extract each column to ensure proper type conversion
+    for(col in names(registration_data)) {
+      value <- registration_data[[col]][1]  # Get first element
+      
+      # Handle different data types safely
+      if (is.null(value)) {
+        mongo_data[[col]] <- ""
+      } else if (is.list(value)) {
+        # If it's a list, extract the first element and convert to character
+        mongo_data[[col]] <- as.character(unlist(value)[1])
+      } else if (is.factor(value)) {
+        mongo_data[[col]] <- as.character(value)
+      } else if (length(value) > 1) {
+        # If it's a vector with multiple elements, take the first
+        mongo_data[[col]] <- as.character(value[1])
+      } else {
+        mongo_data[[col]] <- as.character(value)
+      }
+      
+      # Ensure no NA values
+      if (is.na(mongo_data[[col]]) || mongo_data[[col]] == "NA") {
+        mongo_data[[col]] <- ""
+      }
+    }
+    
+    # Add metadata
     mongo_data$id_pendaftaran <- as.integer(new_id)
     mongo_data$timestamp <- as.character(Sys.time())
     
-    # Ensure all values are atomic (not lists or vectors)
+    # Debug: Check for any remaining list types
     for(col in names(mongo_data)) {
-      if (is.list(mongo_data[[col]]) || length(mongo_data[[col]]) > 1) {
-        mongo_data[[col]] <- as.character(mongo_data[[col]][1])
-      }
-      if (is.na(mongo_data[[col]])) {
-        mongo_data[[col]] <- ""
+      if (is.list(mongo_data[[col]])) {
+        cat("ERROR: Column", col, "is still a list:", class(mongo_data[[col]]), "\n")
+        cat("Value:", str(mongo_data[[col]]), "\n")
+        # Force convert to character
+        mongo_data[[col]] <- as.character(mongo_data[[col]][[1]])
       }
     }
     
@@ -99,6 +126,19 @@ save_single_pendaftaran_mongo <- function(registration_data) {
       mongo_data$status_pendaftaran <- "Diajukan"
     } else {
       mongo_data$status_pendaftaran[is.na(mongo_data$status_pendaftaran)] <- "Diajukan"
+    }
+    
+    # Final type safety check before insertion
+    for(field in names(mongo_data)) {
+      val <- mongo_data[[field]]
+      if (is.list(val) || is.data.frame(val) || (!is.atomic(val))) {
+        cat("CRITICAL: Field", field, "has invalid type:", class(val), "\n")
+        mongo_data[[field]] <- as.character(val)
+      }
+      # Ensure single values only
+      if (length(mongo_data[[field]]) > 1) {
+        mongo_data[[field]] <- mongo_data[[field]][1]
+      }
     }
     
     # Insert single document atomically

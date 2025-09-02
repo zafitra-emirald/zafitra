@@ -722,7 +722,7 @@ ui <- dashboardPage(
                                ),
                                
                                div(class = "info-highlight",
-                                   "📢 ", strong("Pendaftaran: 15 Agustus – 1 September 2025"), br(),
+                                   "📢 ", strong("Pendaftaran: 15 Agustus – 7 September 2025"), br(),
                                    "🔥 Kuota terbatas! Ambil peluang ini sekarang!"
                                )
                            )
