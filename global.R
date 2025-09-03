@@ -105,6 +105,79 @@ Sys.unsetenv("MONGODB_PASSWORD")
 Sys.unsetenv("MONGODB_HOST")
 Sys.unsetenv("MONGODB_DATABASE")
 
+# ================================
+# 13. MARKDOWN TO HTML CONVERTER
+# ================================
+
+# Convert simple markdown-style text to HTML for rich display
+convert_markdown_to_html <- function(text) {
+  if (is.null(text) || is.na(text) || text == "") {
+    return("")
+  }
+  
+  html <- as.character(text)
+  
+  # Convert **bold** to <strong>bold</strong>
+  html <- gsub("\\*\\*([^*]+)\\*\\*", "<strong>\\1</strong>", html)
+  
+  # Convert *italic* to <em>italic</em>
+  html <- gsub("\\*([^*]+)\\*", "<em>\\1</em>", html)
+  
+  # Convert bullet points (• or -) to HTML list
+  lines <- strsplit(html, "\n")[[1]]
+  in_list <- FALSE
+  result_lines <- c()
+  
+  for (line in lines) {
+    trimmed <- trimws(line)
+    
+    # Check if line starts with bullet point
+    if (grepl("^[•-]\\s+", trimmed)) {
+      if (!in_list) {
+        result_lines <- c(result_lines, "<ul>")
+        in_list <- TRUE
+      }
+      # Remove bullet and wrap in <li>
+      content <- gsub("^[•-]\\s+", "", trimmed)
+      result_lines <- c(result_lines, paste0("<li>", content, "</li>"))
+    } else {
+      # Close list if we were in one
+      if (in_list) {
+        result_lines <- c(result_lines, "</ul>")
+        in_list <- FALSE
+      }
+      
+      # Handle paragraphs (empty lines create paragraph breaks)
+      if (trimmed == "") {
+        result_lines <- c(result_lines, "<br><br>")
+      } else {
+        result_lines <- c(result_lines, line)
+      }
+    }
+  }
+  
+  # Close list if still open
+  if (in_list) {
+    result_lines <- c(result_lines, "</ul>")
+  }
+  
+  # Join lines with proper spacing
+  html <- paste(result_lines, collapse = "\n")
+  
+  # Convert remaining single line breaks to <br>, but avoid within HTML tags
+  html <- gsub("\n(?!<)", "<br>", html, perl = TRUE)
+  
+  # Clean up multiple <br> tags and spacing
+  html <- gsub("<br><br><br>", "<br><br>", html)
+  html <- gsub("(<ul>)<br>", "\\1", html)
+  html <- gsub("<br>(</ul>)", "\\1", html)
+  html <- gsub("(<li>[^<]*)</li><br>", "\\1</li>", html)
+  
+  return(html)
+}
+
+# ================================
+
 # Load or create initial data when global.R is sourced
 # Initialize data layer with MongoDB/RDS fallback
 data_layer_result <- initialize_data_layer()

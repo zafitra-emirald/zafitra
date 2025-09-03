@@ -615,6 +615,22 @@ div.location-grid {
   z-index: 1000;
   position: relative;
 }
+
+/* Rich text editor styling */
+#lokasi_isu_editor[contenteditable], #kategori_isu_editor[contenteditable] {
+  outline: none;
+}
+
+#lokasi_isu_editor[contenteditable]:focus, #kategori_isu_editor[contenteditable]:focus {
+  border-color: #80bdff;
+  box-shadow: 0 0 5px rgba(128, 189, 255, 0.5);
+}
+
+#lokasi_isu_editor:empty:before, #kategori_isu_editor:empty:before {
+  content: attr(placeholder);
+  color: #6c757d;
+  font-style: italic;
+}
 "
 
 ui <- dashboardPage(
@@ -841,7 +857,13 @@ ui <- dashboardPage(
                            tags$input(id = "kategori_nama", type = "text", class = "form-control", placeholder = "Masukkan nama kategori", autocomplete = "off")
                          ),
                          textAreaInput("kategori_deskripsi", "Deskripsi:", rows = 3, placeholder = "Deskripsi kategori"),
-                         textAreaInput("kategori_isu", "Isu Strategis:", rows = 3, placeholder = "Isu strategis yang relevan"),
+                         div(
+                           tags$label("Isu Strategis:"),
+                           tags$p("Gunakan **teks** untuk bold, *teks* untuk italic, dan baris kosong untuk paragraf baru", 
+                                  style = "font-size: 0.85em; color: #6c757d; margin-bottom: 5px;"),
+                           textAreaInput("kategori_isu", NULL, rows = 4, 
+                                        placeholder = "Contoh:\nParagraf pertama dengan **teks tebal**.\n\nParagraf kedua dengan *teks miring*.\n\n• Bullet point 1\n• Bullet point 2")
+                         ),
                          br(),
                          div(style = "text-align: center;",
                              actionButton("save_kategori", "💾 Simpan", class = "btn btn-success", style = "margin-right: 5px;"),
@@ -913,7 +935,13 @@ ui <- dashboardPage(
                          textAreaInput("lokasi_alamat", "Alamat Lokasi:", rows = 2, placeholder = "Alamat lengkap lokasi"),
                          textInput("lokasi_map", "Link Google Maps:", placeholder = "https://maps.google.com/?q=..."),
                          selectInput("lokasi_kategori", "Kategori:", choices = NULL),
-                         textAreaInput("lokasi_isu", "Isu Strategis:", rows = 2, placeholder = "Isu strategis yang akan ditangani"),
+                         div(
+                           tags$label("Isu Strategis:"),
+                           tags$p("Gunakan **teks** untuk bold, *teks* untuk italic, dan baris kosong untuk paragraf baru", 
+                                  style = "font-size: 0.85em; color: #6c757d; margin-bottom: 5px;"),
+                           textAreaInput("lokasi_isu", NULL, rows = 4, 
+                                        placeholder = "Contoh:\nParagraf pertama dengan **teks tebal**.\n\nParagraf kedua dengan *teks miring*.\n\n• Bullet point 1\n• Bullet point 2")
+                         ),
                          fileInput("lokasi_foto", "Upload Foto Lokasi (Multiple):", 
                                    accept = c(".png", ".jpg", ".jpeg"),
                                    placeholder = "Pilih file gambar (PNG/JPG)",
@@ -1016,7 +1044,7 @@ ui <- dashboardPage(
                   div(style = "margin-top: 15px;",
                       h6("🎯 Isu Strategis:", style = "color: #495057; margin-bottom: 10px;"),
                       div(style = "background: white; padding: 15px; border-radius: 6px; border: 1px solid #dee2e6;",
-                          textOutput("location_strategic_issues")
+                          uiOutput("location_strategic_issues")
                       )
                   )
               ),

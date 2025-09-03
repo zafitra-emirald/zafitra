@@ -1514,15 +1514,15 @@ server <- function(input, output, session) {
     })
   })
   
-  output$location_strategic_issues <- renderText({
+  output$location_strategic_issues <- renderUI({
     tryCatch({
       if (!is.null(values$selected_location)) {
-        as.character(values$selected_location$isu_strategis)
+        HTML(convert_markdown_to_html(values$selected_location$isu_strategis))
       } else {
-        "Tidak ada isu strategis"
+        p("Tidak ada isu strategis")
       }
     }, error = function(e) {
-      "Error memuat isu strategis"
+      p("Error memuat isu strategis")
     })
   })
   
@@ -2223,7 +2223,8 @@ output$locations_registration <- renderUI({
                     } else NULL
                 ),
                 div(style = "margin-bottom: 10px;",
-                    strong("🎯 Isu Strategis: "), loc$isu_strategis
+                    strong("🎯 Isu Strategis: "), 
+                    HTML(convert_markdown_to_html(loc$isu_strategis))
                 ),
                 div(class = "location-prodi",
                     strong("📚 Program Studi: "), 
