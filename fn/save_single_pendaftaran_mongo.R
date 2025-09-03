@@ -50,7 +50,13 @@ save_single_pendaftaran_mongo <- function(registration_data) {
       if (nrow(existing_data) == 0) {
         new_id <- 1
       } else {
-        new_id <- max(existing_data$id_pendaftaran, na.rm = TRUE) + 1
+        # Safely convert id_pendaftaran to numeric, handling list types
+        ids <- existing_data$id_pendaftaran
+        if (is.list(ids)) {
+          ids <- unlist(ids, recursive = TRUE)
+        }
+        ids <- as.integer(ids)
+        new_id <- max(ids, na.rm = TRUE) + 1
       }
       
       # Also check file-based counter for additional safety
@@ -69,6 +75,7 @@ save_single_pendaftaran_mongo <- function(registration_data) {
       if (file.exists(lock_file)) file.remove(lock_file)
     })
     
+    
     # Prepare data for MongoDB insertion - safely convert data.frame to list
     mongo_data <- list()
     
@@ -76,12 +83,13 @@ save_single_pendaftaran_mongo <- function(registration_data) {
     for(col in names(registration_data)) {
       value <- registration_data[[col]][1]  # Get first element
       
+      
       # Handle different data types safely
       if (is.null(value)) {
         mongo_data[[col]] <- ""
       } else if (is.list(value)) {
         # If it's a list, extract the first element and convert to character
-        mongo_data[[col]] <- as.character(unlist(value)[1])
+        mongo_data[[col]] <- as.character(unlist(value, recursive = TRUE)[1])
       } else if (is.factor(value)) {
         mongo_data[[col]] <- as.character(value)
       } else if (length(value) > 1) {
@@ -95,19 +103,27 @@ save_single_pendaftaran_mongo <- function(registration_data) {
       if (is.na(mongo_data[[col]]) || mongo_data[[col]] == "NA") {
         mongo_data[[col]] <- ""
       }
+      
     }
     
     # Add metadata
     mongo_data$id_pendaftaran <- as.integer(new_id)
     mongo_data$timestamp <- as.character(Sys.time())
     
-    # Debug: Check for any remaining list types
+    # Final safety check for any remaining list types
     for(col in names(mongo_data)) {
       if (is.list(mongo_data[[col]])) {
-        cat("ERROR: Column", col, "is still a list:", class(mongo_data[[col]]), "\n")
-        cat("Value:", str(mongo_data[[col]]), "\n")
-        # Force convert to character
-        mongo_data[[col]] <- as.character(mongo_data[[col]][[1]])
+        # Force convert to character - handle nested lists properly
+        if (length(mongo_data[[col]]) > 0) {
+          if (is.list(mongo_data[[col]][[1]])) {
+            # Handle nested lists
+            mongo_data[[col]] <- as.character(unlist(mongo_data[[col]], recursive = TRUE)[1])
+          } else {
+            mongo_data[[col]] <- as.character(mongo_data[[col]][[1]])
+          }
+        } else {
+          mongo_data[[col]] <- ""
+        }
       }
     }
     
@@ -141,8 +157,11 @@ save_single_pendaftaran_mongo <- function(registration_data) {
       }
     }
     
+    # Convert to proper format for MongoDB - ensure it's a single-row data.frame
+    mongo_df <- data.frame(mongo_data, stringsAsFactors = FALSE)
+    
     # Insert single document atomically
-    insert_result <- pendaftaran_conn$insert(mongo_data)
+    insert_result <- pendaftaran_conn$insert(mongo_df)
     
     # Verify the insertion was successful
     if (is.null(insert_result) || length(insert_result) == 0) {
@@ -160,7 +179,6 @@ save_single_pendaftaran_mongo <- function(registration_data) {
     
     pendaftaran_conn$disconnect()
     
-    cat("✅ Single registration saved atomically with ID:", new_id, "\n")
     return(new_id)
     
   }, error = function(e) {

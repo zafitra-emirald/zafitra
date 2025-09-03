@@ -119,7 +119,7 @@ server <- function(input, output, session) {
       
       # Show success notification
       showNotification(paste("✅", queue_item$reg_nama, "berhasil didaftarkan! ID:", new_id), 
-                      type = "success", duration = 5)
+                      type = "message", duration = 5)
       
     }, error = function(e) {
       showNotification(paste("❌", queue_item$reg_nama, "gagal disimpan. Silakan coba lagi:", e$message), 
@@ -2381,6 +2381,9 @@ observeEvent(input$submit_registration, {
   queue_position <- length(values$registration_queue) + 1
   
   tryCatch({
+    # Refresh data before validation to ensure latest status (especially for previously rejected students)
+    values$pendaftaran_data <- refresh_pendaftaran_data()
+    
     # Initial validation (without blocking other users)
     eligibility <- check_registration_eligibility(input$reg_nim, values$selected_location$nama_lokasi, 
                                                   values$pendaftaran_data, values$periode_data)
