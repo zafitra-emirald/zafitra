@@ -2545,7 +2545,8 @@ search_results <- reactive({
     # Check if any search criteria is provided
     has_criteria <- (!is.null(input$search_nama) && nchar(trimws(input$search_nama)) > 0) ||
       (!is.null(input$search_nim) && nchar(trimws(input$search_nim)) > 0) ||
-      (!is.null(input$search_tanggal) && !is.na(input$search_tanggal)) ||
+      (!is.null(input$search_tanggal_option) && input$search_tanggal_option == "all") ||
+      (!is.null(input$search_tanggal_option) && input$search_tanggal_option == "specific" && !is.null(input$search_tanggal) && !is.na(input$search_tanggal)) ||
       (!is.null(input$search_lokasi) && input$search_lokasi != "") ||
       (!is.null(input$search_status) && input$search_status != "")
     
@@ -2559,7 +2560,7 @@ search_results <- reactive({
       results <- search_registrations(
         nama = if(!is.null(input$search_nama) && nchar(trimws(input$search_nama)) > 0) input$search_nama else NULL,
         nim = if(!is.null(input$search_nim) && nchar(trimws(input$search_nim)) > 0) input$search_nim else NULL,
-        tanggal = input$search_tanggal,
+        tanggal = if(!is.null(input$search_tanggal_option) && input$search_tanggal_option == "specific") input$search_tanggal else NULL,
         lokasi = if(!is.null(input$search_lokasi) && input$search_lokasi != "") input$search_lokasi else NULL,
         status = if(!is.null(input$search_status) && input$search_status != "") input$search_status else NULL,
         pendaftaran_data = values$pendaftaran_data

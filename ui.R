@@ -807,8 +807,15 @@ ui <- dashboardPage(
                                               placeholder = "Masukkan NIM Anda"),
                                     textInput("search_nama", "Nama Mahasiswa:", 
                                               placeholder = "Masukkan nama Anda"),
-                                    dateInput("search_tanggal", "Tanggal Pendaftaran:", 
-                                              value = NULL),
+                                    div(style = "position: relative;",
+                                        selectInput("search_tanggal_option", "Tanggal Pendaftaran:",
+                                                   choices = c("Semua Tanggal" = "all", "Pilih Tanggal Spesifik" = "specific"),
+                                                   selected = "all"),
+                                        conditionalPanel(
+                                          condition = "input.search_tanggal_option == 'specific'",
+                                          dateInput("search_tanggal", "", value = NULL)
+                                        )
+                                    ),
                                     selectInput("search_lokasi", "Lokasi:", 
                                                 choices = c("Semua Lokasi" = "")),
                                     selectInput("search_status", "Status:", 
