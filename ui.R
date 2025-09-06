@@ -1248,6 +1248,26 @@ ui <- dashboardPage(
       )
     ),
     
+    # Modal for displaying rejection reasons
+    div(id = "rejectionReasonModal", class = "modal fade", tabindex = "-1", role = "dialog",
+        div(class = "modal-dialog", role = "document",
+            div(class = "modal-content",
+                div(class = "modal-header",
+                    h4(class = "modal-title", "🚫 Alasan Penolakan Pendaftaran"),
+                    tags$button(type = "button", class = "close", `data-dismiss` = "modal",
+                               tags$span(`aria-hidden` = "true", "×"))
+                ),
+                div(class = "modal-body",
+                    div(id = "rejectionReasonContent", 
+                        style = "background-color: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; border-left: 4px solid #dc3545;")
+                ),
+                div(class = "modal-footer",
+                    tags$button(type = "button", class = "btn btn-secondary", `data-dismiss` = "modal", "Tutup")
+                )
+            )
+        )
+    ),
+    
     # Photo Gallery Modal with improved event handling
     conditionalPanel(
       condition = "output.show_photo_modal",
@@ -1301,6 +1321,14 @@ ui <- dashboardPage(
         )
       )
     ),
+    
+    # JavaScript for rejection reason modal
+    tags$script("
+      function showRejectionReason(reason) {
+        document.getElementById('rejectionReasonContent').innerHTML = reason;
+        $('#rejectionReasonModal').modal('show');
+      }
+    "),
     
     # Version Footer
     div(

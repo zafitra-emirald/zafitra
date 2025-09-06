@@ -2606,12 +2606,34 @@ output$registration_results <- DT::renderDataTable({
     Prodi = results$program_studi,
     Lokasi = results$pilihan_lokasi,
     Status = results$status_pendaftaran,
-    Tanggal = tryCatch(format(as.POSIXct(results$timestamp), "%d-%m-%Y %H:%M"), error = function(e) as.character(results$timestamp))
+    Tanggal = tryCatch(format(as.POSIXct(results$timestamp), "%d-%m-%Y %H:%M"), error = function(e) as.character(results$timestamp)),
+    Alasan = ifelse(
+      results$status_pendaftaran == "Ditolak" & !is.na(results$alasan_penolakan) & results$alasan_penolakan != "",
+      paste0('<button class="btn btn-sm btn-warning" onclick="showRejectionReason(\'', 
+             gsub("'", "\\\\'", results$alasan_penolakan), 
+             '\')">📋 Lihat Alasan</button>'),
+      ""
+    ),
+    stringsAsFactors = FALSE
   )
   
-  return(DT::datatable(simple_data, 
-                       options = list(pageLength = 10, searching = FALSE),
-                       rownames = FALSE))
+  # Create datatable with button column formatting
+  dt <- DT::datatable(simple_data, 
+                      options = list(
+                        pageLength = 10, 
+                        searching = FALSE,
+                        columnDefs = list(
+                          list(
+                            targets = which(names(simple_data) == "Alasan") - 1,
+                            orderable = FALSE,
+                            className = "text-center"
+                          )
+                        )
+                      ),
+                      rownames = FALSE,
+                      escape = FALSE)
+  
+  return(dt)
   
   # OLD COMPLEX CODE REMOVED - using simple approach above
   
